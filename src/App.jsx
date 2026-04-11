@@ -45,7 +45,7 @@ export default function App() {
           <img
             src={Logo}
             alt="Logo"
-            className="w-24 h-24 object-contain animate-pulse"
+            className="w-64 h-64 object-contain animate-pulse"
           />
           <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse" />
         </div>
