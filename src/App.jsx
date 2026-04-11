@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import MainView from "./components/MainView";
 import Footer from "./components/Footer";
 import Sidebar from "./components/SideBar";
-import Logo from "./assets/taskflow.png";
+import Logo from "./assets/tba-logo.png";
 
 export default function App() {
   const [lists, setLists] = useState([]);
@@ -22,7 +22,8 @@ export default function App() {
         })),
       }));
       setLists(migrated);
-      setActiveListId(migrated[0]?.id || null);
+      // Don't auto-select first list anymore - start with grid view
+      setActiveListId(null);
     } catch (e) {
       console.error("Storage error", e);
       setLists([]);
@@ -44,7 +45,7 @@ export default function App() {
           <img
             src={Logo}
             alt="Logo"
-            className="w-64 h-64 object-contain animate-pulse"
+            className="w-24 h-24 object-contain animate-pulse"
           />
           <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse" />
         </div>
@@ -70,10 +71,11 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 relative">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent pointer-events-none" />
         <MainView
-          list={activeList}
+          list={activeListId ? activeList : null}
           lists={lists}
           setLists={setLists}
           setIsOpen={setIsOpen}
+          setActiveListId={setActiveListId}
         />
         <Footer />
       </div>

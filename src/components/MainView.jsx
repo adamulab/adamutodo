@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Plus, Menu, Sparkles, Calendar, Clock } from "lucide-react";
+import {
+  Plus,
+  Menu,
+  Sparkles,
+  Calendar,
+  ArrowLeft,
+  ListTodo,
+  AlertCircle,
+  CheckCircle2,
+  Circle,
+  X,
+} from "lucide-react";
 import TodoItem from "./TodoItem";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import {
@@ -8,11 +19,53 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 
-export default function MainView({ list, lists, setLists, setIsOpen }) {
+export default function MainView({
+  list,
+  lists,
+  setLists,
+  setIsOpen,
+  setActiveListId,
+}) {
   const [text, setText] = useState("");
   const [priority, setPriority] = useState("medium");
   const [deadline, setDeadline] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isCreatingList, setIsCreatingList] = useState(false);
+  const [newListTitle, setNewListTitle] = useState("");
+
+  // Calculate stats for a list
+  const getListStats = (l) => {
+    const total = l.todos.length;
+    const completed = l.todos.filter((t) => t.done).length;
+    const overdue = l.todos.filter((t) => {
+      if (t.done || !t.deadline) return false;
+      return new Date(t.deadline).getTime() < new Date().getTime();
+    }).length;
+    const progress = total > 0 ? (completed / total) * 100 : 0;
+    return { total, completed, overdue, progress };
+  };
+
+  const addList = () => {
+    if (!newListTitle.trim()) return;
+    const item = {
+      id: Date.now(),
+      title: newListTitle,
+      todos: [],
+      createdAt: new Date().toISOString(),
+    };
+    setLists([...lists, item]);
+    setActiveListId(item.id);
+    setNewListTitle("");
+    setIsCreatingList(false);
+  };
+
+  const handleListKeyPress = (e) => {
+    if (e.key === "Enter") addList();
+    if (e.key === "Escape") {
+      setIsCreatingList(false);
+      setNewListTitle("");
+    }
+  };
 
   const addTodo = () => {
     if (!text.trim() || !list) return;
@@ -65,11 +118,195 @@ export default function MainView({ list, lists, setLists, setIsOpen }) {
     }
   };
 
+  const selectList = (listId) => {
+    setActiveListId(listId);
+  };
+
+  const backToGrid = () => {
+    setActiveListId(null);
+  };
+
+  // Grid View - Show all lists
+  if (!list) {
+    return (
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {/* Header */}
+        <header className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-slate-900/50 backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsOpen(true)}
+              className="md:hidden p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <Menu className="w-5 h-5 text-slate-400" />
+            </button>
+            <div>
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                My Lists
+              </h2>
+              <p className="text-sm text-slate-400 mt-0.5">
+                {lists.length} lists ·{" "}
+                {lists.reduce((acc, l) => acc + l.todos.length, 0)} total tasks
+              </p>
+            </div>
+          </div>
+        </header>
+
+        {/* Lists Grid */}
+        <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">
+          {lists.length === 0 && !isCreatingList ? (
+            <div className="h-full flex flex-col items-center justify-center text-slate-500">
+              <div className="w-20 h-20 mb-6 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-white/5">
+                <ListTodo className="w-10 h-10 text-slate-600" />
+              </div>
+              <p className="text-xl font-semibold text-slate-300 mb-2">
+                No lists yet
+              </p>
+              <p className="text-sm text-slate-500 mb-6">
+                Create your first list to get started
+              </p>
+              <button
+                onClick={() => setIsCreatingList(true)}
+                className="px-6 py-3 bg-blue-500 hover:bg-blue-400 rounded-xl text-white font-medium transition-all duration-200 flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Create List
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {lists.map((l) => {
+                const stats = getListStats(l);
+                return (
+                  <div
+                    key={l.id}
+                    onClick={() => selectList(l.id)}
+                    className="group relative p-6 rounded-2xl bg-slate-800/40 border border-white/5 hover:border-blue-500/30 hover:bg-slate-800/60 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/5 hover:-translate-y-1"
+                  >
+                    {/* Overdue Badge */}
+                    {stats.overdue > 0 && (
+                      <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+                        <AlertCircle className="w-3 h-3" />
+                        {stats.overdue}
+                      </div>
+                    )}
+
+                    {/* Icon */}
+                    <div className="w-12 h-12 mb-4 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 flex items-center justify-center border border-blue-500/20 group-hover:scale-110 transition-transform duration-300">
+                      <ListTodo className="w-6 h-6 text-blue-400" />
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="font-semibold text-lg text-white mb-1 truncate">
+                      {l.title}
+                    </h3>
+
+                    {/* Date */}
+                    <p className="text-xs text-slate-500 mb-4">
+                      Created{" "}
+                      {new Date(l.createdAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+
+                    {/* Progress Bar */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="text-slate-400">
+                          {stats.completed}/{stats.total} done
+                        </span>
+                        <span className="text-slate-500">
+                          {Math.round(stats.progress)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-500"
+                          style={{ width: `${stats.progress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick Stats */}
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        {stats.completed}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Circle className="w-3.5 h-3.5 text-slate-400" />
+                        {stats.total - stats.completed}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Create New List Card - Input Mode */}
+              {isCreatingList ? (
+                <div className="p-6 rounded-2xl bg-slate-800/60 border border-blue-500/30 shadow-lg shadow-blue-500/5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                      <Plus className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <span className="font-medium text-white">New List</span>
+                  </div>
+
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newListTitle}
+                    onChange={(e) => setNewListTitle(e.target.value)}
+                    onKeyDown={handleListKeyPress}
+                    placeholder="List name..."
+                    className="w-full px-3 py-2 bg-slate-900/50 border border-white/10 rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 mb-3"
+                  />
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={addList}
+                      disabled={!newListTitle.trim()}
+                      className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-400 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg text-xs font-medium text-white transition-colors"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsCreatingList(false);
+                        setNewListTitle("");
+                      }}
+                      className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-300 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Create New List Card - Button Mode */
+                <div
+                  onClick={() => setIsCreatingList(true)}
+                  className="group p-6 rounded-2xl border border-dashed border-white/10 hover:border-blue-500/30 hover:bg-slate-800/30 cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[200px] gap-3"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center group-hover:bg-blue-500/10 transition-colors">
+                    <Plus className="w-6 h-6 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-400 group-hover:text-blue-400 transition-colors">
+                    Create New List
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // List View - Show selected list todos
   const completedCount = list?.todos.filter((t) => t.done).length || 0;
   const totalCount = list?.todos.length || 0;
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-
-  // Count overdue tasks
   const overdueCount =
     list?.todos.filter((t) => {
       if (t.done || !t.deadline) return false;
@@ -88,33 +325,41 @@ export default function MainView({ list, lists, setLists, setIsOpen }) {
             <Menu className="w-5 h-5 text-slate-400" />
           </button>
 
-          {list ? (
-            <div className="flex items-center gap-4">
-              <div>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-bold text-white tracking-tight">
-                    {list.title}
-                  </h2>
-                  {overdueCount > 0 && (
-                    <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-pulse">
-                      <AlertCircle className="w-4 h-4" />
-                      {overdueCount} overdue
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-slate-400 mt-0.5">
-                  {completedCount} of {totalCount} tasks completed
-                </p>
-              </div>
+          <button
+            onClick={backToGrid}
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Lists
+          </button>
+
+          <div className="h-6 w-px bg-white/10 hidden sm:block" />
+
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                {list.title}
+              </h2>
+              {overdueCount > 0 && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-pulse">
+                  <AlertCircle className="w-4 h-4" />
+                  {overdueCount} overdue
+                </span>
+              )}
             </div>
-          ) : (
-            <h2 className="text-2xl font-bold text-slate-500">
-              Select a list to begin
-            </h2>
-          )}
+            <p className="text-sm text-slate-400 mt-0.5">
+              {completedCount} of {totalCount} tasks completed
+            </p>
+          </div>
         </div>
 
-        {list && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={backToGrid}
+            className="sm:hidden p-2 hover:bg-white/5 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-400" />
+          </button>
           <div className="hidden sm:flex items-center gap-3">
             <div className="w-32 h-2 bg-slate-800 rounded-full overflow-hidden">
               <div
@@ -126,130 +371,100 @@ export default function MainView({ list, lists, setLists, setIsOpen }) {
               {Math.round(progress)}%
             </span>
           </div>
-        )}
+        </div>
       </header>
 
-      {list ? (
-        <>
-          {/* Input Area */}
-          <div className="px-8 py-6 border-b border-white/5 bg-slate-900/30">
-            <div
-              className={`flex flex-col gap-3 p-2 rounded-2xl bg-slate-800/50 border transition-all duration-300 ${isInputFocused ? "border-blue-500/30 ring-4 ring-blue-500/5" : "border-white/5"}`}
-            >
-              <div className="flex gap-3">
-                <input
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  onFocus={() => setIsInputFocused(true)}
-                  onBlur={() => setIsInputFocused(false)}
-                  className="flex-1 px-4 py-3 bg-transparent text-white placeholder:text-slate-500 focus:outline-none text-sm"
-                  placeholder="What needs to be done?"
-                />
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 px-2 pb-2">
-                <div className="flex items-center gap-2 flex-1">
-                  <Calendar className="w-4 h-4 text-slate-500" />
-                  <input
-                    type="datetime-local"
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-900/50 border border-white/5 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-blue-500/50"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className={`px-4 py-2 rounded-lg text-xs font-medium border focus:outline-none cursor-pointer transition-colors ${getPriorityColor(priority)}`}
-                  >
-                    <option
-                      value="low"
-                      className="bg-slate-800 text-emerald-400"
-                    >
-                      Low Priority
-                    </option>
-                    <option
-                      value="medium"
-                      className="bg-slate-800 text-amber-400"
-                    >
-                      Medium Priority
-                    </option>
-                    <option
-                      value="urgent"
-                      className="bg-slate-800 text-red-400"
-                    >
-                      Urgent
-                    </option>
-                  </select>
-                  <button
-                    onClick={addTodo}
-                    disabled={!text.trim()}
-                    className="px-6 py-2 bg-blue-500 hover:bg-blue-400 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Add</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+      {/* Input Area */}
+      <div className="px-8 py-6 border-b border-white/5 bg-slate-900/30">
+        <div
+          className={`flex flex-col gap-3 p-2 rounded-2xl bg-slate-800/50 border transition-all duration-300 ${isInputFocused ? "border-blue-500/30 ring-4 ring-blue-500/5" : "border-white/5"}`}
+        >
+          <div className="flex gap-3">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyPress={handleKeyPress}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+              className="flex-1 px-4 py-3 bg-transparent text-white placeholder:text-slate-500 focus:outline-none text-sm"
+              placeholder="What needs to be done?"
+            />
           </div>
-
-          {/* Todo List */}
-          <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
-            {list.todos.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                <div className="w-16 h-16 mb-4 rounded-full bg-slate-800/50 flex items-center justify-center">
-                  <Sparkles className="w-8 h-8 text-slate-600" />
-                </div>
-                <p className="text-lg font-medium text-slate-400">
-                  No tasks yet
-                </p>
-                <p className="text-sm mt-1">
-                  Add your first task above to get started
-                </p>
-              </div>
-            ) : (
-              <DndContext
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
+          <div className="flex flex-col sm:flex-row gap-2 px-2 pb-2">
+            <div className="flex items-center gap-2 flex-1">
+              <Calendar className="w-4 h-4 text-slate-500" />
+              <input
+                type="datetime-local"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="flex-1 px-3 py-2 bg-slate-900/50 border border-white/5 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className={`px-4 py-2 rounded-lg text-xs font-medium border focus:outline-none cursor-pointer transition-colors ${getPriorityColor(priority)}`}
               >
-                <SortableContext
-                  items={list.todos.map((t) => t.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-2">
-                    {list.todos.map((todo) => (
-                      <TodoItem
-                        key={todo.id}
-                        todo={todo}
-                        list={list}
-                        lists={lists}
-                        setLists={setLists}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-slate-800/50 flex items-center justify-center border border-white/5">
-              <Sparkles className="w-12 h-12 text-slate-600" />
+                <option value="low" className="bg-slate-800 text-emerald-400">
+                  Low Priority
+                </option>
+                <option value="medium" className="bg-slate-800 text-amber-400">
+                  Medium Priority
+                </option>
+                <option value="urgent" className="bg-slate-800 text-red-400">
+                  Urgent
+                </option>
+              </select>
+              <button
+                onClick={addTodo}
+                disabled={!text.trim()}
+                className="px-6 py-2 bg-blue-500 hover:bg-blue-400 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Add</span>
+              </button>
             </div>
-            <h3 className="text-xl font-semibold text-slate-300 mb-2">
-              Welcome to TaskFlow
-            </h3>
-            <p className="text-slate-500 max-w-sm">
-              Select a list from the sidebar or create a new one to start
-              organizing your tasks.
-            </p>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Todo List */}
+      <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
+        {list.todos.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-slate-500">
+            <div className="w-16 h-16 mb-4 rounded-full bg-slate-800/50 flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-slate-600" />
+            </div>
+            <p className="text-lg font-medium text-slate-400">No tasks yet</p>
+            <p className="text-sm mt-1">
+              Add your first task above to get started
+            </p>
+          </div>
+        ) : (
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={list.todos.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {list.todos.map((todo) => (
+                  <TodoItem
+                    key={todo.id}
+                    todo={todo}
+                    list={list}
+                    lists={lists}
+                    setLists={setLists}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+      </div>
     </div>
   );
 }
