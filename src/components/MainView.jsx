@@ -33,8 +33,14 @@ export default function MainView({
   const [isCreatingList, setIsCreatingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
 
+  // Ensure lists is always an array
+  const safeLists = Array.isArray(lists) ? lists : [];
+
   // Calculate stats for a list
   const getListStats = (l) => {
+    if (!l || !Array.isArray(l.todos)) {
+      return { total: 0, completed: 0, overdue: 0, progress: 0 };
+    }
     const total = l.todos.length;
     const completed = l.todos.filter((t) => t.done).length;
     const overdue = l.todos.filter((t) => {
@@ -53,7 +59,7 @@ export default function MainView({
       todos: [],
       createdAt: new Date().toISOString(),
     };
-    setLists([...lists, item]);
+    setLists([...safeLists, item]);
     setActiveListId(item.id);
     setNewListTitle("");
     setIsCreatingList(false);
@@ -69,12 +75,12 @@ export default function MainView({
 
   const addTodo = () => {
     if (!text.trim() || !list) return;
-    const updated = lists.map((l) =>
+    const updated = safeLists.map((l) =>
       l.id === list.id
         ? {
             ...l,
             todos: [
-              ...l.todos,
+              ...(l.todos || []),
               {
                 id: Date.now(),
                 text,
@@ -96,14 +102,24 @@ export default function MainView({
     if (e.key === "Enter") addTodo();
   };
 
-  const handleDragEnd = ({ active, over }) => {
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
     if (!over || active.id === over.id || !list) return;
-    const oldIndex = list.todos.findIndex((t) => t.id === active.id);
-    const newIndex = list.todos.findIndex((t) => t.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+
+    const oldIndex = list.todos?.findIndex((t) => t.id === active.id);
+    const newIndex = list.todos?.findIndex((t) => t.id === over.id);
+
+    if (
+      oldIndex === -1 ||
+      newIndex === -1 ||
+      oldIndex === undefined ||
+      newIndex === undefined
+    )
+      return;
+
     const reordered = arrayMove(list.todos, oldIndex, newIndex);
     setLists(
-      lists.map((l) => (l.id === list.id ? { ...l, todos: reordered } : l)),
+      safeLists.map((l) => (l.id === list.id ? { ...l, todos: reordered } : l)),
     );
   };
 
@@ -144,8 +160,9 @@ export default function MainView({
                 My Lists
               </h2>
               <p className="text-sm text-slate-400 mt-0.5">
-                {lists.length} lists ·{" "}
-                {lists.reduce((acc, l) => acc + l.todos.length, 0)} total tasks
+                {safeLists.length} lists ·{" "}
+                {safeLists.reduce((acc, l) => acc + (l.todos?.length || 0), 0)}{" "}
+                total tasks
               </p>
             </div>
           </div>
@@ -153,7 +170,7 @@ export default function MainView({
 
         {/* Lists Grid */}
         <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">
-          {lists.length === 0 && !isCreatingList ? (
+          {safeLists.length === 0 && !isCreatingList ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-500">
               <div className="w-20 h-20 mb-6 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-white/5">
                 <ListTodo className="w-10 h-10 text-slate-600" />
@@ -174,7 +191,7 @@ export default function MainView({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {lists.map((l) => {
+              {safeLists.map((l) => {
                 const stats = getListStats(l);
                 return (
                   <div
@@ -304,14 +321,14 @@ export default function MainView({
   }
 
   // List View - Show selected list todos
-  const completedCount = list?.todos.filter((t) => t.done).length || 0;
-  const totalCount = list?.todos.length || 0;
+  const todos = list.todos || [];
+  const completedCount = todos.filter((t) => t.done).length;
+  const totalCount = todos.length;
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-  const overdueCount =
-    list?.todos.filter((t) => {
-      if (t.done || !t.deadline) return false;
-      return new Date(t.deadline).getTime() < new Date().getTime();
-    }).length || 0;
+  const overdueCount = todos.filter((t) => {
+    if (t.done || !t.deadline) return false;
+    return new Date(t.deadline).getTime() < new Date().getTime();
+  }).length;
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
@@ -431,7 +448,7 @@ export default function MainView({
 
       {/* Todo List */}
       <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
-        {list.todos.length === 0 ? (
+        {todos.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-500">
             <div className="w-16 h-16 mb-4 rounded-full bg-slate-800/50 flex items-center justify-center">
               <Sparkles className="w-8 h-8 text-slate-600" />
@@ -447,11 +464,11 @@ export default function MainView({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={list.todos.map((t) => t.id)}
+              items={todos.map((t) => t.id)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
-                {list.todos.map((todo) => (
+                {todos.map((todo) => (
                   <TodoItem
                     key={todo.id}
                     todo={todo}
