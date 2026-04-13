@@ -4,7 +4,7 @@ import MainView from "./components/MainView";
 import Footer from "./components/Footer";
 import Sidebar from "./components/SideBar";
 import ThemeToggle from "./components/ThemeToggle";
-import Logo from "./assets/tba-logo.png";
+import Logo from "./assets/taskflow.png";
 import { Download, X } from "lucide-react";
 import { AdSenseProvider } from "./context/AdsenseContext";
 
@@ -93,7 +93,7 @@ function AppContent() {
           <img
             src={Logo}
             alt="Logo"
-            className="w-24 h-24 object-contain animate-pulse"
+            className="w-64 h-64 object-contain animate-pulse"
           />
           <div className="absolute inset-0 bg-[var(--primary)]/20 blur-xl rounded-full animate-pulse" />
         </div>
