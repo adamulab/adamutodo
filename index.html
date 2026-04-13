@@ -11,8 +11,42 @@
 
     <!-- Vite uses direct paths, no %PUBLIC_URL% -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" href="/taskflow.png" />
-    <link rel="apple-touch-icon" href="/taskflow.png" />
+    <!-- iOS specific -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="TaskFlow" />
+
+    <!-- Android/Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="TaskFlow" />
+
+    <link rel="icon" type="image/png" href="/icon-192x192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/masked-icon.svg" color="#0f172a" />
+
+    <title>TaskFlow</title>
+
+    <style>
+      /* Prevent pull-to-refresh and overscroll effects on mobile */
+      body {
+        overscroll-behavior-y: none;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Hide scrollbar for Chrome, Safari and Opera */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* Hide scrollbar for IE, Edge and Firefox */
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
 
     <title>Todo By AdamuCreates</title>
   </head>
