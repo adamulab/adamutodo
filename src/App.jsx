@@ -1,11 +1,17 @@
 import { useState, useEffect } from "react";
+import { ThemeProvider } from "./context/ThemeContext";
 import MainView from "./components/MainView";
 import Footer from "./components/Footer";
 import Sidebar from "./components/SideBar";
-import Logo from "./assets/taskflow.png";
+import ThemeToggle from "./components/ThemeToggle";
+import Logo from "./assets/tba-logo.png";
 import { Download, X } from "lucide-react";
+import { AdSenseProvider } from "./context/AdsenseContext";
 
-export default function App() {
+// Replace with your actual AdSense ID
+const ADSENSE_ID = "ca-pub-7316645635680327";
+
+function AppContent() {
   const [lists, setLists] = useState([]);
   const [activeListId, setActiveListId] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -15,7 +21,6 @@ export default function App() {
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
-    // Check if already installed
     if (
       window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true
@@ -23,14 +28,12 @@ export default function App() {
       setIsInstalled(true);
     }
 
-    // Listen for install prompt
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallBanner(true);
     };
 
-    // Listen for app installed
     const handleAppInstalled = () => {
       setDeferredPrompt(null);
       setShowInstallBanner(false);
@@ -40,7 +43,6 @@ export default function App() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
 
-    // Load data
     try {
       const stored = JSON.parse(localStorage.getItem("todo-lists")) || [];
       const migrated = stored.map((list) => ({
@@ -70,10 +72,8 @@ export default function App() {
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-
     if (outcome === "accepted") {
       setDeferredPrompt(null);
       setShowInstallBanner(false);
@@ -88,34 +88,33 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="h-screen flex flex-col items-center justify-center bg-[var(--background)]">
         <div className="relative">
           <img
             src={Logo}
             alt="Logo"
             className="w-24 h-24 object-contain animate-pulse"
           />
-          <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse" />
+          <div className="absolute inset-0 bg-[var(--primary)]/20 blur-xl rounded-full animate-pulse" />
         </div>
         <div className="mt-6 flex gap-1">
-          <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-          <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-          <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
+          <span className="w-2 h-2 bg-[var(--primary)] rounded-full animate-bounce [animation-delay:-0.3s]" />
+          <span className="w-2 h-2 bg-[var(--primary)] rounded-full animate-bounce [animation-delay:-0.15s]" />
+          <span className="w-2 h-2 bg-[var(--primary)] rounded-full animate-bounce" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 font-sans selection:bg-blue-500/30">
-      {/* Install Banner */}
+    <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--text)] font-sans selection:bg-[var(--primary)]/30">
       {showInstallBanner && !isInstalled && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white px-4 py-3 flex items-center justify-between shadow-lg animate-slide-down">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-[var(--primary)] text-[var(--text-inverse)] px-4 py-3 flex items-center justify-between shadow-lg animate-slide-down">
           <div className="flex items-center gap-3">
             <img src={Logo} alt="TaskFlow" className="w-8 h-8 rounded-lg" />
             <div>
               <p className="font-semibold text-sm">Install TaskFlow</p>
-              <p className="text-xs text-blue-100">
+              <p className="text-xs opacity-90">
                 Add to home screen for quick access
               </p>
             </div>
@@ -123,14 +122,14 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleInstallClick}
-              className="px-4 py-2 bg-white text-blue-600 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors"
+              className="px-4 py-2 bg-[var(--text-inverse)] text-[var(--primary)] rounded-lg text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
             >
               <Download className="w-4 h-4" />
               Install
             </button>
             <button
               onClick={() => setShowInstallBanner(false)}
-              className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
+              className="p-2 hover:bg-[var(--text-inverse)]/10 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -146,8 +145,14 @@ export default function App() {
         isOpen={isOpen}
         setIsOpen={setIsOpen}
       />
+
       <div className="flex-1 flex flex-col min-w-0 relative">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[var(--primary)]/5 via-transparent to-transparent pointer-events-none" />
+
+        <div className="absolute top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
+
         <MainView
           list={activeListId ? activeList : null}
           lists={lists}
@@ -158,5 +163,15 @@ export default function App() {
         <Footer />
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AdSenseProvider publisherId={ADSENSE_ID}>
+        <AppContent />
+      </AdSenseProvider>
+    </ThemeProvider>
   );
 }

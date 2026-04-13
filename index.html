@@ -4,13 +4,23 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#2563eb" />
-    <meta name="description" content="A beautiful todo app by AdamuCreates" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="background-color" content="#0f172a" />
 
-    <!-- Vite uses direct paths, no %PUBLIC_URL% -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Google AdSense -->
+    <meta name="google-adsense-account" content="ca-pub-7316645635680327" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Web Manifest -->
+    <link rel="manifest" href="/site.webmanifest" />
+
     <!-- iOS specific -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
@@ -23,11 +33,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="TaskFlow" />
 
-    <link rel="icon" type="image/png" href="/icon-192x192.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="mask-icon" href="/masked-icon.svg" color="#0f172a" />
-
-    <title>TaskFlow</title>
+    <title>TaskFlow - Professional Todo App</title>
 
     <style>
       /* Prevent pull-to-refresh and overscroll effects on mobile */
@@ -47,14 +53,9 @@
         scrollbar-width: none;
       }
     </style>
-
-    <title>Todo By AdamuCreates</title>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-
-    <!-- Vite uses this script tag -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

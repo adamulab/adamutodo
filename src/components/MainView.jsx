@@ -33,10 +33,8 @@ export default function MainView({
   const [isCreatingList, setIsCreatingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
 
-  // Ensure lists is always an array
   const safeLists = Array.isArray(lists) ? lists : [];
 
-  // Calculate stats for a list
   const getListStats = (l) => {
     if (!l || !Array.isArray(l.todos)) {
       return { total: 0, completed: 0, overdue: 0, progress: 0 };
@@ -109,13 +107,7 @@ export default function MainView({
     const oldIndex = list.todos?.findIndex((t) => t.id === active.id);
     const newIndex = list.todos?.findIndex((t) => t.id === over.id);
 
-    if (
-      oldIndex === -1 ||
-      newIndex === -1 ||
-      oldIndex === undefined ||
-      newIndex === undefined
-    )
-      return;
+    if (oldIndex === -1 || newIndex === -1) return;
 
     const reordered = arrayMove(list.todos, oldIndex, newIndex);
     setLists(
@@ -126,11 +118,11 @@ export default function MainView({
   const getPriorityColor = (p) => {
     switch (p) {
       case "urgent":
-        return "text-red-400 bg-red-500/10 border-red-500/20";
+        return "text-red-500 bg-red-500/10 border-red-500/20";
       case "medium":
-        return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+        return "text-amber-500 bg-amber-500/10 border-amber-500/20";
       default:
-        return "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+        return "text-emerald-500 bg-emerald-500/10 border-emerald-500/20";
     }
   };
 
@@ -142,24 +134,22 @@ export default function MainView({
     setActiveListId(null);
   };
 
-  // Grid View - Show all lists
   if (!list) {
     return (
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Header */}
-        <header className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-slate-900/50 backdrop-blur-sm">
+        <header className="flex items-center justify-between px-8 py-6 border-b border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsOpen(true)}
-              className="md:hidden p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
+              className="md:hidden p-2 -ml-2 hover:bg-[var(--surface-hover)] rounded-lg transition-colors"
             >
-              <Menu className="w-5 h-5 text-slate-400" />
+              <Menu className="w-5 h-5 text-[var(--text-muted)]" />
             </button>
             <div>
-              <h2 className="text-2xl font-bold text-white tracking-tight">
+              <h2 className="text-2xl font-bold text-[var(--text)] tracking-tight">
                 My Lists
               </h2>
-              <p className="text-sm text-slate-400 mt-0.5">
+              <p className="text-sm text-[var(--text-muted)] mt-0.5">
                 {safeLists.length} lists ·{" "}
                 {safeLists.reduce((acc, l) => acc + (l.todos?.length || 0), 0)}{" "}
                 total tasks
@@ -168,22 +158,21 @@ export default function MainView({
           </div>
         </header>
 
-        {/* Lists Grid */}
         <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">
           {safeLists.length === 0 && !isCreatingList ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500">
-              <div className="w-20 h-20 mb-6 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-white/5">
-                <ListTodo className="w-10 h-10 text-slate-600" />
+            <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
+              <div className="w-20 h-20 mb-6 rounded-2xl bg-[var(--surface)] flex items-center justify-center border border-[var(--border)]">
+                <ListTodo className="w-10 h-10 text-[var(--text-muted)]" />
               </div>
-              <p className="text-xl font-semibold text-slate-300 mb-2">
+              <p className="text-xl font-semibold text-[var(--text)] mb-2">
                 No lists yet
               </p>
-              <p className="text-sm text-slate-500 mb-6">
+              <p className="text-sm mb-6">
                 Create your first list to get started
               </p>
               <button
                 onClick={() => setIsCreatingList(true)}
-                className="px-6 py-3 bg-blue-500 hover:bg-blue-400 rounded-xl text-white font-medium transition-all duration-200 flex items-center gap-2"
+                className="btn-primary flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Create List
@@ -197,28 +186,23 @@ export default function MainView({
                   <div
                     key={l.id}
                     onClick={() => selectList(l.id)}
-                    className="group relative p-6 rounded-2xl bg-slate-800/40 border border-white/5 hover:border-blue-500/30 hover:bg-slate-800/60 cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/5 hover:-translate-y-1"
+                    className="group relative p-6 rounded-2xl bg-[var(--surface)] border border-[var(--border)] card-hover"
                   >
-                    {/* Overdue Badge */}
                     {stats.overdue > 0 && (
-                      <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
+                      <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
                         <AlertCircle className="w-3 h-3" />
                         {stats.overdue}
                       </div>
                     )}
 
-                    {/* Icon */}
-                    <div className="w-12 h-12 mb-4 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 flex items-center justify-center border border-blue-500/20 group-hover:scale-110 transition-transform duration-300">
-                      <ListTodo className="w-6 h-6 text-blue-400" />
+                    <div className="w-12 h-12 mb-4 rounded-xl bg-[var(--primary-muted)] flex items-center justify-center border border-[var(--primary)]/20 group-hover:scale-110 transition-transform duration-300">
+                      <ListTodo className="w-6 h-6 text-[var(--primary)]" />
                     </div>
 
-                    {/* Title */}
-                    <h3 className="font-semibold text-lg text-white mb-1 truncate">
+                    <h3 className="font-semibold text-lg text-[var(--text)] mb-1 truncate">
                       {l.title}
                     </h3>
-
-                    {/* Date */}
-                    <p className="text-xs text-slate-500 mb-4">
+                    <p className="text-xs text-[var(--text-muted)] mb-4">
                       Created{" "}
                       {new Date(l.createdAt).toLocaleDateString(undefined, {
                         month: "short",
@@ -227,32 +211,30 @@ export default function MainView({
                       })}
                     </p>
 
-                    {/* Progress Bar */}
                     <div className="mb-3">
                       <div className="flex justify-between text-xs mb-1.5">
-                        <span className="text-slate-400">
+                        <span className="text-[var(--text-muted)]">
                           {stats.completed}/{stats.total} done
                         </span>
-                        <span className="text-slate-500">
+                        <span className="text-[var(--text-muted)]">
                           {Math.round(stats.progress)}%
                         </span>
                       </div>
-                      <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-500"
+                          className="h-full bg-[var(--primary)] rounded-full transition-all duration-500"
                           style={{ width: `${stats.progress}%` }}
                         />
                       </div>
                     </div>
 
-                    {/* Quick Stats */}
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                    <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
                       <span className="flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                         {stats.completed}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Circle className="w-3.5 h-3.5 text-slate-400" />
+                        <Circle className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                         {stats.total - stats.completed}
                       </span>
                     </div>
@@ -260,14 +242,15 @@ export default function MainView({
                 );
               })}
 
-              {/* Create New List Card - Input Mode */}
               {isCreatingList ? (
-                <div className="p-6 rounded-2xl bg-slate-800/60 border border-blue-500/30 shadow-lg shadow-blue-500/5">
+                <div className="p-6 rounded-2xl bg-[var(--surface)] border border-[var(--primary)]/30 shadow-lg">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                      <Plus className="w-5 h-5 text-blue-400" />
+                    <div className="w-10 h-10 rounded-xl bg-[var(--primary-muted)] flex items-center justify-center">
+                      <Plus className="w-5 h-5 text-[var(--primary)]" />
                     </div>
-                    <span className="font-medium text-white">New List</span>
+                    <span className="font-medium text-[var(--text)]">
+                      New List
+                    </span>
                   </div>
 
                   <input
@@ -277,14 +260,14 @@ export default function MainView({
                     onChange={(e) => setNewListTitle(e.target.value)}
                     onKeyDown={handleListKeyPress}
                     placeholder="List name..."
-                    className="w-full px-3 py-2 bg-slate-900/50 border border-white/10 rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 mb-3"
+                    className="input-field mb-3"
                   />
 
                   <div className="flex gap-2">
                     <button
                       onClick={addList}
                       disabled={!newListTitle.trim()}
-                      className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-400 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg text-xs font-medium text-white transition-colors"
+                      className="flex-1 px-3 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:bg-[var(--surface-elevated)] disabled:cursor-not-allowed rounded-lg text-xs font-medium text-[var(--text-inverse)] transition-colors"
                     >
                       Create
                     </button>
@@ -293,22 +276,21 @@ export default function MainView({
                         setIsCreatingList(false);
                         setNewListTitle("");
                       }}
-                      className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium text-slate-300 transition-colors"
+                      className="px-3 py-2 bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] rounded-lg text-xs font-medium text-[var(--text)] transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
               ) : (
-                /* Create New List Card - Button Mode */
                 <div
                   onClick={() => setIsCreatingList(true)}
-                  className="group p-6 rounded-2xl border border-dashed border-white/10 hover:border-blue-500/30 hover:bg-slate-800/30 cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[200px] gap-3"
+                  className="group p-6 rounded-2xl border border-dashed border-[var(--border)] hover:border-[var(--primary)]/30 hover:bg-[var(--surface)] cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[200px] gap-3"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center group-hover:bg-blue-500/10 transition-colors">
-                    <Plus className="w-6 h-6 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                  <div className="w-12 h-12 rounded-xl bg-[var(--surface)] flex items-center justify-center group-hover:bg-[var(--primary-muted)] transition-colors">
+                    <Plus className="w-6 h-6 text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors" />
                   </div>
-                  <span className="text-sm font-medium text-slate-400 group-hover:text-blue-400 transition-colors">
+                  <span className="text-sm font-medium text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
                     Create New List
                   </span>
                 </div>
@@ -320,7 +302,6 @@ export default function MainView({
     );
   }
 
-  // List View - Show selected list todos
   const todos = list.todos || [];
   const completedCount = todos.filter((t) => t.done).length;
   const totalCount = todos.length;
@@ -332,39 +313,38 @@ export default function MainView({
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-      {/* Header */}
-      <header className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-slate-900/50 backdrop-blur-sm">
+      <header className="flex items-center justify-between px-8 py-6 border-b border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setIsOpen(true)}
-            className="md:hidden p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="md:hidden p-2 -ml-2 hover:bg-[var(--surface-hover)] rounded-lg transition-colors"
           >
-            <Menu className="w-5 h-5 text-slate-400" />
+            <Menu className="w-5 h-5 text-[var(--text-muted)]" />
           </button>
 
           <button
             onClick={backToGrid}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-lg transition-all"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Lists
           </button>
 
-          <div className="h-6 w-px bg-white/10 hidden sm:block" />
+          <div className="h-6 w-px bg-[var(--border)] hidden sm:block" />
 
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-white tracking-tight">
+              <h2 className="text-2xl font-bold text-[var(--text)] tracking-tight">
                 {list.title}
               </h2>
               {overdueCount > 0 && (
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-pulse">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium animate-pulse">
                   <AlertCircle className="w-4 h-4" />
                   {overdueCount} overdue
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-400 mt-0.5">
+            <p className="text-sm text-[var(--text-muted)] mt-0.5">
               {completedCount} of {totalCount} tasks completed
             </p>
           </div>
@@ -373,28 +353,27 @@ export default function MainView({
         <div className="flex items-center gap-3">
           <button
             onClick={backToGrid}
-            className="sm:hidden p-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="sm:hidden p-2 hover:bg-[var(--surface-hover)] rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-400" />
+            <ArrowLeft className="w-5 h-5 text-[var(--text-muted)]" />
           </button>
           <div className="hidden sm:flex items-center gap-3">
-            <div className="w-32 h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div className="w-32 h-2 bg-[var(--border)] rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500 ease-out"
+                className="h-full bg-[var(--primary)] rounded-full transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <span className="text-sm font-medium text-slate-400">
+            <span className="text-sm font-medium text-[var(--text-muted)]">
               {Math.round(progress)}%
             </span>
           </div>
         </div>
       </header>
 
-      {/* Input Area */}
-      <div className="px-8 py-6 border-b border-white/5 bg-slate-900/30">
+      <div className="px-8 py-6 border-b border-[var(--border)] bg-[var(--surface)]/30">
         <div
-          className={`flex flex-col gap-3 p-2 rounded-2xl bg-slate-800/50 border transition-all duration-300 ${isInputFocused ? "border-blue-500/30 ring-4 ring-blue-500/5" : "border-white/5"}`}
+          className={`flex flex-col gap-3 p-2 rounded-2xl bg-[var(--surface)] border transition-all duration-300 ${isInputFocused ? "border-[var(--primary)]/30 ring-4 ring-[var(--primary)]/5" : "border-[var(--border)]"}`}
         >
           <div className="flex gap-3">
             <input
@@ -403,18 +382,18 @@ export default function MainView({
               onKeyPress={handleKeyPress}
               onFocus={() => setIsInputFocused(true)}
               onBlur={() => setIsInputFocused(false)}
-              className="flex-1 px-4 py-3 bg-transparent text-white placeholder:text-slate-500 focus:outline-none text-sm"
+              className="flex-1 px-4 py-3 bg-transparent text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none text-sm"
               placeholder="What needs to be done?"
             />
           </div>
           <div className="flex flex-col sm:flex-row gap-2 px-2 pb-2">
             <div className="flex items-center gap-2 flex-1">
-              <Calendar className="w-4 h-4 text-slate-500" />
+              <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
               <input
                 type="datetime-local"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="flex-1 px-3 py-2 bg-slate-900/50 border border-white/5 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-blue-500/50"
+                className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs text-[var(--text)] focus:outline-none focus:border-[var(--primary)]/50"
               />
             </div>
             <div className="flex gap-2">
@@ -423,20 +402,29 @@ export default function MainView({
                 onChange={(e) => setPriority(e.target.value)}
                 className={`px-4 py-2 rounded-lg text-xs font-medium border focus:outline-none cursor-pointer transition-colors ${getPriorityColor(priority)}`}
               >
-                <option value="low" className="bg-slate-800 text-emerald-400">
+                <option
+                  value="low"
+                  className="bg-[var(--surface)] text-emerald-500"
+                >
                   Low Priority
                 </option>
-                <option value="medium" className="bg-slate-800 text-amber-400">
+                <option
+                  value="medium"
+                  className="bg-[var(--surface)] text-amber-500"
+                >
                   Medium Priority
                 </option>
-                <option value="urgent" className="bg-slate-800 text-red-400">
+                <option
+                  value="urgent"
+                  className="bg-[var(--surface)] text-red-500"
+                >
                   Urgent
                 </option>
               </select>
               <button
                 onClick={addTodo}
                 disabled={!text.trim()}
-                className="px-6 py-2 bg-blue-500 hover:bg-blue-400 disabled:bg-slate-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
+                className="px-6 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:bg-[var(--surface-elevated)] disabled:cursor-not-allowed rounded-lg text-[var(--text-inverse)] font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[var(--primary)]/20"
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Add</span>
@@ -446,14 +434,15 @@ export default function MainView({
         </div>
       </div>
 
-      {/* Todo List */}
       <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
         {todos.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500">
-            <div className="w-16 h-16 mb-4 rounded-full bg-slate-800/50 flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-slate-600" />
+          <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
+            <div className="w-16 h-16 mb-4 rounded-full bg-[var(--surface)] flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-[var(--text-muted)]" />
             </div>
-            <p className="text-lg font-medium text-slate-400">No tasks yet</p>
+            <p className="text-lg font-medium text-[var(--text)]">
+              No tasks yet
+            </p>
             <p className="text-sm mt-1">
               Add your first task above to get started
             </p>

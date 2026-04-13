@@ -30,7 +30,6 @@ export default function TodoItem({ todo, list, lists, setLists }) {
     zIndex: isDragging ? 50 : 1,
   };
 
-  // Countdown timer effect
   useEffect(() => {
     if (!todo.deadline || todo.done) {
       setTimeLeft("");
@@ -66,8 +65,7 @@ export default function TodoItem({ todo, list, lists, setLists }) {
     };
 
     calculateTimeLeft();
-    const timer = setInterval(calculateTimeLeft, 60000); // Update every minute
-
+    const timer = setInterval(calculateTimeLeft, 60000);
     return () => clearInterval(timer);
   }, [todo.deadline, todo.done]);
 
@@ -97,11 +95,11 @@ export default function TodoItem({ todo, list, lists, setLists }) {
   const getPriorityStyles = (p) => {
     switch (p) {
       case "urgent":
-        return "bg-red-500/10 text-red-400 border-red-500/20";
+        return "bg-red-500/10 text-red-500 border-red-500/20";
       case "medium":
-        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+        return "bg-amber-500/10 text-amber-500 border-amber-500/20";
       default:
-        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
     }
   };
 
@@ -133,53 +131,51 @@ export default function TodoItem({ todo, list, lists, setLists }) {
       style={style}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`group relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-300 ${isDragging ? "opacity-50 scale-105 shadow-2xl bg-slate-800 border-blue-500/30" : ""} ${isOverdue && !todo.done ? "bg-red-950/20 border-red-500/30 hover:border-red-500/50" : "bg-slate-800/40 border-white/5 hover:border-white/10 hover:bg-slate-800/60"}`}
+      className={`group relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-300 ${isDragging ? "opacity-50 scale-105 shadow-2xl bg-[var(--surface-elevated)] border-[var(--primary)]/30" : ""} ${isOverdue && !todo.done ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--primary)]/20 hover:bg-[var(--surface-hover)]"}`}
     >
-      {/* Drag Handle */}
       <div
         {...attributes}
         {...listeners}
-        className={`cursor-grab active:cursor-grabbing p-1 rounded hover:bg-white/5 transition-colors ${isHovered || isDragging ? "opacity-100" : "opacity-0"}`}
+        className={`cursor-grab active:cursor-grabbing p-1 rounded hover:bg-[var(--surface-hover)] transition-colors ${isHovered || isDragging ? "opacity-100" : "opacity-0"}`}
       >
-        <GripVertical className="w-4 h-4 text-slate-500" />
+        <GripVertical className="w-4 h-4 text-[var(--text-muted)]" />
       </div>
 
-      {/* Checkbox */}
       <button
         onClick={toggleTodo}
-        className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${todo.done ? "bg-blue-500 border-blue-500" : isOverdue ? "border-red-500 hover:border-red-400" : "border-slate-600 hover:border-blue-500/50"}`}
+        className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${todo.done ? "bg-[var(--primary)] border-[var(--primary)]" : isOverdue ? "border-red-500 hover:border-red-400" : "border-[var(--text-muted)] hover:border-[var(--primary)]/50"}`}
       >
-        {todo.done && <Check className="w-3.5 h-3.5 text-white" />}
+        {todo.done && (
+          <Check className="w-3.5 h-3.5 text-[var(--text-inverse)]" />
+        )}
       </button>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 flex-wrap">
           <span
-            className={`text-sm transition-all duration-300 truncate ${todo.done ? "text-slate-500 line-through" : isOverdue ? "text-red-200" : "text-slate-200"}`}
+            className={`text-sm transition-all duration-300 truncate ${todo.done ? "text-[var(--text-muted)] line-through" : isOverdue ? "text-red-500" : "text-[var(--text)]"}`}
           >
             {todo.text}
           </span>
           {isOverdue && !todo.done && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs font-medium border border-red-500/20 animate-pulse">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-xs font-medium border border-red-500/20 animate-pulse">
               <AlertCircle className="w-3 h-3" />
               OVERDUE
             </span>
           )}
         </div>
 
-        {/* Deadline & Countdown Row */}
         {todo.deadline && (
           <div className="flex items-center gap-3 mt-1.5">
             <div
-              className={`flex items-center gap-1.5 text-xs ${isOverdue && !todo.done ? "text-red-400" : "text-slate-500"}`}
+              className={`flex items-center gap-1.5 text-xs ${isOverdue && !todo.done ? "text-red-500" : "text-[var(--text-muted)]"}`}
             >
               <Clock className="w-3 h-3" />
               <span>{formatDeadline(todo.deadline)}</span>
             </div>
             {!todo.done && timeLeft && (
               <div
-                className={`flex items-center gap-1 text-xs font-medium ${isOverdue ? "text-red-400" : "text-amber-400"}`}
+                className={`flex items-center gap-1 text-xs font-medium ${isOverdue ? "text-red-500" : "text-amber-500"}`}
               >
                 <Hourglass className="w-3 h-3" />
                 <span>{timeLeft}</span>
@@ -189,17 +185,15 @@ export default function TodoItem({ todo, list, lists, setLists }) {
         )}
       </div>
 
-      {/* Priority Badge */}
       <span
         className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${getPriorityStyles(todo.priority)}`}
       >
         {getPriorityLabel(todo.priority)}
       </span>
 
-      {/* Delete Button */}
       <button
         onClick={deleteTodo}
-        className={`p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200 ${isHovered ? "opacity-100" : "opacity-0"}`}
+        className={`p-2 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all duration-200 ${isHovered ? "opacity-100" : "opacity-0"}`}
       >
         <Trash2 className="w-4 h-4" />
       </button>
