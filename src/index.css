@@ -49,7 +49,6 @@
     color: var(--text);
   }
 
-  /* Custom scrollbar that adapts to theme */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -113,21 +112,29 @@
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-muted);
   }
+}
 
-  .card-hover {
-    @apply transition-all duration-300 cursor-pointer;
+/* Animation keyframes */
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
-
-  .card-hover:hover {
-    background-color: var(--surface-hover);
-    border-color: var(--primary);
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-    box-shadow: 0 10px 15px -3px var(--shadow);
-    transform: translateY(-2px);
+  to {
+    opacity: 1;
   }
 }
 
-/* Animation for install banner */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes slide-down {
   from {
     transform: translateY(-100%);
@@ -139,6 +146,40 @@
   }
 }
 
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
 .animate-slide-down {
   animation: slide-down 0.3s ease-out;
+}
+
+/* Mobile optimizations */
+@supports (-webkit-touch-callout: none) {
+  .h-screen {
+    height: -webkit-fill-available;
+  }
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }

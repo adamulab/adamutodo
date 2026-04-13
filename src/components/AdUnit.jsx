@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useAdSense } from "../context/AdSenseContext";
+import { useAdSense } from "../context/AdsenseContext";
 
 export default function AdUnit({
   slot,

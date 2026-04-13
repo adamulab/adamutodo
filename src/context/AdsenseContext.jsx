@@ -4,7 +4,7 @@ const AdSenseContext = createContext();
 
 export function AdSenseProvider({
   children,
-  publisherId = "ca-pub-XXXXXXXXXXXXXXXX",
+  publisherId = "ca-pub-7316645635680327",
 }) {
   const [adsLoaded, setAdsLoaded] = useState(false);
 
