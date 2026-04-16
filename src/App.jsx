@@ -11,7 +11,7 @@ import UserMenu from "./components/UserMenu";
 import ThemeToggle from "./components/ThemeToggle";
 import { Wifi, WifiOff, RefreshCw, Loader2 } from "lucide-react";
 
-const ADSENSE_ID = import.meta.env.ADSENSE_ID || "ca-pub-7316645635680327";
+const ADSENSE_ID = import.meta.env.VITE_ADSENSE_ID || "ca-pub-7316645635680327";
 
 function AppContent() {
   const { user, loading: authLoading, authChecked } = useAuth();

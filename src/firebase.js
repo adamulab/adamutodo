@@ -1,5 +1,5 @@
-console.log("API Key:", import.meta.env.FIREBASE_API);
-console.log("Auth Domain:", import.meta.env.FIREBASE_AUTH_DOMAIN);
+console.log("API Key:", import.meta.env.VITE_FIREBASE_API_KEY);
+console.log("Auth Domain:", import.meta.env.VITE_FIREBASE_AUTH_DOMAIN);
 
 import { initializeApp } from "firebase/app";
 import {
@@ -12,7 +12,6 @@ import {
   onSnapshot,
   writeBatch,
   enableIndexedDbPersistence,
-  connectFirestoreEmulator,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -23,13 +22,19 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.FIREBASE_API,
-  authDomain: import.meta.env.FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+// Validate config before initializing
+if (!firebaseConfig.apiKey) {
+  console.error("Firebase API Key is missing! Check your .env file");
+  console.error("Available env vars:", import.meta.env);
+}
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
