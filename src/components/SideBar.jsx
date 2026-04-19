@@ -1,5 +1,13 @@
-import { useState } from "react";
-import { Plus, X, Trash2, Calendar, AlertCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import {
+  Plus,
+  X,
+  Trash2,
+  Calendar,
+  AlertCircle,
+  Pencil,
+  Check,
+} from "lucide-react";
 import Logo from "../assets/taskflow.png";
 
 export default function Sidebar({
@@ -7,6 +15,7 @@ export default function Sidebar({
   activeListId,
   onSelectList,
   onCreateList,
+  onUpdateList,
   onDeleteList,
   isOpen,
   setIsOpen,
@@ -14,6 +23,19 @@ export default function Sidebar({
   const [newList, setNewList] = useState("");
   const [listError, setListError] = useState("");
   const [isHovered, setIsHovered] = useState(null);
+
+  // Inline rename state
+  const [editingId, setEditingId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [editError, setEditError] = useState("");
+  const editInputRef = useRef(null);
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
 
   const addList = async () => {
     if (!newList.trim()) return;
@@ -25,6 +47,35 @@ export default function Sidebar({
       setNewList("");
       setListError("");
     }
+  };
+
+  const startRename = (list, e) => {
+    e.stopPropagation();
+    setEditingId(list.id);
+    setEditingTitle(list.title);
+    setEditError("");
+  };
+
+  const cancelRename = () => {
+    setEditingId(null);
+    setEditingTitle("");
+    setEditError("");
+  };
+
+  const saveRename = async (list) => {
+    if (!editingTitle.trim()) return;
+    const result = await onUpdateList({ ...list, title: editingTitle.trim() });
+    if (result?.error) {
+      setEditError(result.error);
+    } else {
+      setEditingId(null);
+      setEditError("");
+    }
+  };
+
+  const handleRenameKeyDown = (e, list) => {
+    if (e.key === "Enter") saveRename(list);
+    if (e.key === "Escape") cancelRename();
   };
 
   const deleteList = async (id, e) => {
@@ -143,6 +194,7 @@ export default function Sidebar({
 
             {lists.map((list) => {
               const isActive = activeListId === list.id;
+              const isRenaming = editingId === list.id;
               const todoCount = (list.todos || []).length;
               const completedCount = (list.todos || []).filter(
                 (t) => t.done,
@@ -150,105 +202,190 @@ export default function Sidebar({
               const overdueCount = getOverdueCount(list);
 
               return (
-                <div
-                  key={list.id}
-                  onMouseEnter={() => setIsHovered(list.id)}
-                  onMouseLeave={() => setIsHovered(null)}
-                  onClick={() => {
-                    onSelectList(list.id);
-                    setIsOpen(false);
-                  }}
-                  className="group relative flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-300"
-                  style={{
-                    backgroundColor: isActive
-                      ? "var(--primary-muted)"
-                      : "transparent",
-                    border: `1px solid ${isActive ? "var(--primary)" : "transparent"}`,
-                  }}
-                >
+                <div key={list.id}>
                   <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full transition-all duration-300"
+                    onMouseEnter={() => setIsHovered(list.id)}
+                    onMouseLeave={() => setIsHovered(null)}
+                    onClick={() => {
+                      if (isRenaming) return;
+                      onSelectList(list.id);
+                      setIsOpen(false);
+                    }}
+                    className="group relative flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-300"
                     style={{
-                      backgroundColor: "var(--primary)",
-                      opacity: isActive ? 1 : 0,
-                    }}
-                  />
-
-                  <div className="flex-1 min-w-0 pl-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="font-medium text-sm truncate transition-colors"
-                        style={{
-                          color: isActive ? "var(--primary)" : "var(--text)",
-                        }}
-                      >
-                        {list.title}
-                      </span>
-                      {overdueCount > 0 && (
-                        <span
-                          className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border"
-                          style={{
-                            backgroundColor: "rgba(239, 68, 68, 0.1)",
-                            color: "#ef4444",
-                            borderColor: "rgba(239, 68, 68, 0.2)",
-                          }}
-                        >
-                          <AlertCircle className="w-3 h-3" />
-                          {overdueCount}
-                        </span>
-                      )}
-                      {overdueCount === 0 && todoCount > 0 && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: isActive
-                              ? "var(--primary-muted)"
-                              : "var(--surface-elevated)",
-                            color: isActive
-                              ? "var(--primary)"
-                              : "var(--text-muted)",
-                          }}
-                        >
-                          {completedCount}/{todoCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar
-                        className="w-3 h-3"
-                        style={{ color: "var(--text-muted)" }}
-                      />
-                      <span
-                        className="text-xs"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {new Date(list.createdAt).toLocaleDateString(
-                          undefined,
-                          { month: "short", day: "numeric" },
-                        )}
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={(e) => deleteList(list.id, e)}
-                    className="p-2 rounded-lg transition-all duration-200"
-                    style={{
-                      color: "var(--text-muted)",
-                      opacity: isHovered === list.id || isActive ? 1 : 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#ef4444";
-                      e.currentTarget.style.backgroundColor =
-                        "rgba(239, 68, 68, 0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "var(--text-muted)";
-                      e.currentTarget.style.backgroundColor = "transparent";
+                      backgroundColor: isActive
+                        ? "var(--primary-muted)"
+                        : "transparent",
+                      border: `1px solid ${isActive ? "var(--primary)" : "transparent"}`,
                     }}
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    <div
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full transition-all duration-300"
+                      style={{
+                        backgroundColor: "var(--primary)",
+                        opacity: isActive ? 1 : 0,
+                      }}
+                    />
+
+                    <div className="flex-1 min-w-0 pl-3">
+                      {isRenaming ? (
+                        /* Inline rename input */
+                        <input
+                          ref={editInputRef}
+                          value={editingTitle}
+                          onChange={(e) => {
+                            setEditingTitle(e.target.value);
+                            if (editError) setEditError("");
+                          }}
+                          onKeyDown={(e) => handleRenameKeyDown(e, list)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full px-2 py-1 text-sm bg-[var(--background)] border border-[var(--primary)]/40 rounded-lg text-[var(--text)] focus:outline-none"
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="font-medium text-sm truncate transition-colors"
+                              style={{
+                                color: isActive
+                                  ? "var(--primary)"
+                                  : "var(--text)",
+                              }}
+                            >
+                              {list.title}
+                            </span>
+                            {overdueCount > 0 && (
+                              <span
+                                className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border"
+                                style={{
+                                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                  color: "#ef4444",
+                                  borderColor: "rgba(239, 68, 68, 0.2)",
+                                }}
+                              >
+                                <AlertCircle className="w-3 h-3" />
+                                {overdueCount}
+                              </span>
+                            )}
+                            {overdueCount === 0 && todoCount > 0 && (
+                              <span
+                                className="text-xs px-2 py-0.5 rounded-full"
+                                style={{
+                                  backgroundColor: isActive
+                                    ? "var(--primary-muted)"
+                                    : "var(--surface-elevated)",
+                                  color: isActive
+                                    ? "var(--primary)"
+                                    : "var(--text-muted)",
+                                }}
+                              >
+                                {completedCount}/{todoCount}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Calendar
+                              className="w-3 h-3"
+                              style={{ color: "var(--text-muted)" }}
+                            />
+                            <span
+                              className="text-xs"
+                              style={{ color: "var(--text-muted)" }}
+                            >
+                              {new Date(list.createdAt).toLocaleDateString(
+                                undefined,
+                                { month: "short", day: "numeric" },
+                              )}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div
+                      className="flex items-center gap-0.5 shrink-0 ml-1"
+                      style={{
+                        opacity:
+                          isHovered === list.id || isActive || isRenaming
+                            ? 1
+                            : 0,
+                      }}
+                    >
+                      {isRenaming ? (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              saveRename(list);
+                            }}
+                            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]"
+                            style={{ color: "var(--text-muted)" }}
+                            title="Save"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelRename();
+                            }}
+                            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
+                            style={{ color: "var(--text-muted)" }}
+                            title="Cancel"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => startRename(list, e)}
+                            className="p-1.5 rounded-lg transition-colors"
+                            style={{ color: "var(--text-muted)" }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = "var(--primary)";
+                              e.currentTarget.style.backgroundColor =
+                                "var(--primary-muted)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = "var(--text-muted)";
+                              e.currentTarget.style.backgroundColor =
+                                "transparent";
+                            }}
+                            title="Rename list"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => deleteList(list.id, e)}
+                            className="p-1.5 rounded-lg transition-colors"
+                            style={{ color: "var(--text-muted)" }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = "#ef4444";
+                              e.currentTarget.style.backgroundColor =
+                                "rgba(239, 68, 68, 0.1)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = "var(--text-muted)";
+                              e.currentTarget.style.backgroundColor =
+                                "transparent";
+                            }}
+                            title="Delete list"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {/* Rename error */}
+                  {isRenaming && editError && (
+                    <p className="ml-3 mt-1 text-xs flex items-center gap-1 text-red-500">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {editError}
+                    </p>
+                  )}
                 </div>
               );
             })}

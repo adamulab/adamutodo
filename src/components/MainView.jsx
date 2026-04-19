@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Plus,
   Menu,
@@ -12,6 +12,8 @@ import {
   X,
   Trash2,
   Loader2,
+  Pencil,
+  Check,
 } from "lucide-react";
 import TodoItem from "./TodoItem";
 import { DndContext, closestCenter } from "@dnd-kit/core";
@@ -60,6 +62,7 @@ export default function MainView({
   onBack,
   onSelectList,
   onCreateList,
+  onUpdateList,
   onDeleteList,
   onCreateTodo,
   onUpdateTodo,
@@ -81,6 +84,19 @@ export default function MainView({
     item: null,
   });
 
+  // Rename active list state (list view header)
+  const [isRenamingHeader, setIsRenamingHeader] = useState(false);
+  const [headerTitle, setHeaderTitle] = useState("");
+  const [headerRenameError, setHeaderRenameError] = useState("");
+  const headerInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isRenamingHeader && headerInputRef.current) {
+      headerInputRef.current.focus();
+      headerInputRef.current.select();
+    }
+  }, [isRenamingHeader]);
+
   const safeLists = Array.isArray(lists) ? lists : [];
 
   const getListStats = (l) => {
@@ -95,6 +111,7 @@ export default function MainView({
     return { total, completed, overdue, progress };
   };
 
+  // ── Create list ─────────────────────────────────────────────────────────────
   const addList = async () => {
     if (!newListTitle.trim()) return;
     setNewListError("");
@@ -113,9 +130,39 @@ export default function MainView({
     if (e.key === "Escape") {
       setIsCreatingList(false);
       setNewListTitle("");
+      setNewListError("");
     }
   };
 
+  // ── Rename active list (header) ─────────────────────────────────────────────
+  const startHeaderRename = () => {
+    setHeaderTitle(list.title);
+    setHeaderRenameError("");
+    setIsRenamingHeader(true);
+  };
+
+  const cancelHeaderRename = () => {
+    setIsRenamingHeader(false);
+    setHeaderRenameError("");
+  };
+
+  const saveHeaderRename = async () => {
+    if (!headerTitle.trim()) return;
+    const result = await onUpdateList({ ...list, title: headerTitle.trim() });
+    if (result?.error) {
+      setHeaderRenameError(result.error);
+    } else {
+      setIsRenamingHeader(false);
+      setHeaderRenameError("");
+    }
+  };
+
+  const handleHeaderRenameKeyDown = (e) => {
+    if (e.key === "Enter") saveHeaderRename();
+    if (e.key === "Escape") cancelHeaderRename();
+  };
+
+  // ── Delete list ─────────────────────────────────────────────────────────────
   const confirmDeleteList = (listId, e) => {
     e.stopPropagation();
     const listToDelete = safeLists.find((l) => l.id === listId);
@@ -127,6 +174,7 @@ export default function MainView({
     setDeleteModal({ isOpen: false, type: null, item: null });
   };
 
+  // ── Add todo ────────────────────────────────────────────────────────────────
   const addTodo = async () => {
     if (!text.trim() || !list) return;
     await onCreateTodo(list.id, {
@@ -164,7 +212,6 @@ export default function MainView({
     }
   };
 
-  // Loading skeleton
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center h-full bg-[var(--background)]">
@@ -173,7 +220,7 @@ export default function MainView({
     );
   }
 
-  // ── GRID VIEW (no active list) ──────────────────────────────────────────────
+  // ── GRID VIEW ───────────────────────────────────────────────────────────────
   if (!list) {
     return (
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--background)]">
@@ -230,18 +277,16 @@ export default function MainView({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {safeLists.slice(0, 2).map((l) => {
-                const stats = getListStats(l);
-                return (
-                  <ListCard
-                    key={l.id}
-                    l={l}
-                    stats={stats}
-                    onSelect={onSelectList}
-                    onDelete={confirmDeleteList}
-                  />
-                );
-              })}
+              {safeLists.slice(0, 2).map((l) => (
+                <ListCard
+                  key={l.id}
+                  l={l}
+                  stats={getListStats(l)}
+                  onSelect={onSelectList}
+                  onDelete={confirmDeleteList}
+                  onUpdate={onUpdateList}
+                />
+              ))}
 
               {safeLists.length >= 2 && (
                 <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center min-h-[200px]">
@@ -255,18 +300,16 @@ export default function MainView({
                 </div>
               )}
 
-              {safeLists.slice(2).map((l) => {
-                const stats = getListStats(l);
-                return (
-                  <ListCard
-                    key={l.id}
-                    l={l}
-                    stats={stats}
-                    onSelect={onSelectList}
-                    onDelete={confirmDeleteList}
-                  />
-                );
-              })}
+              {safeLists.slice(2).map((l) => (
+                <ListCard
+                  key={l.id}
+                  l={l}
+                  stats={getListStats(l)}
+                  onSelect={onSelectList}
+                  onDelete={confirmDeleteList}
+                  onUpdate={onUpdateList}
+                />
+              ))}
 
               {isCreatingList ? (
                 <div className="p-6 rounded-2xl bg-[var(--surface)] border border-[var(--primary)]/30 shadow-lg">
@@ -358,39 +401,84 @@ export default function MainView({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--background)]">
       <header className="shrink-0 flex items-center justify-between px-8 py-6 border-b border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <button
             onClick={onOpenSidebar}
-            className="md:hidden p-2 -ml-2 hover:bg-[var(--surface-hover)] rounded-lg transition-colors"
+            className="md:hidden p-2 -ml-2 hover:bg-[var(--surface-hover)] rounded-lg transition-colors shrink-0"
           >
             <Menu className="w-5 h-5 text-[var(--text-muted)]" />
           </button>
           <button
             onClick={onBack}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-lg transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-lg transition-all shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back to Lists</span>
+            <span className="hidden sm:inline">Back</span>
           </button>
-          <div className="h-6 w-px bg-[var(--border)] hidden sm:block" />
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-[var(--text)] tracking-tight">
-                {list.title}
-              </h2>
-              {overdueCount > 0 && (
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium animate-pulse">
-                  <AlertCircle className="w-4 h-4" />
-                  {overdueCount} overdue
-                </span>
-              )}
-            </div>
+          <div className="h-6 w-px bg-[var(--border)] hidden sm:block shrink-0" />
+
+          <div className="min-w-0">
+            {isRenamingHeader ? (
+              /* Inline rename */
+              <div className="flex items-center gap-2">
+                <input
+                  ref={headerInputRef}
+                  value={headerTitle}
+                  onChange={(e) => {
+                    setHeaderTitle(e.target.value);
+                    if (headerRenameError) setHeaderRenameError("");
+                  }}
+                  onKeyDown={handleHeaderRenameKeyDown}
+                  className="px-3 py-1.5 bg-[var(--background)] border border-[var(--primary)]/40 rounded-lg text-xl font-bold text-[var(--text)] focus:outline-none w-48 sm:w-64"
+                />
+                <button
+                  onClick={saveHeaderRename}
+                  className="p-1.5 rounded-lg bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 text-[var(--primary)] transition-colors"
+                  title="Save"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={cancelHeaderRename}
+                  className="p-1.5 rounded-lg hover:bg-[var(--surface-hover)] text-[var(--text-muted)] transition-colors"
+                  title="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-[var(--text)] tracking-tight truncate">
+                  {list.title}
+                </h2>
+                <button
+                  onClick={startHeaderRename}
+                  className="p-1.5 rounded-lg hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] text-[var(--text-muted)] transition-colors shrink-0"
+                  title="Rename list"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                {overdueCount > 0 && (
+                  <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium animate-pulse shrink-0">
+                    <AlertCircle className="w-4 h-4" />
+                    {overdueCount} overdue
+                  </span>
+                )}
+              </div>
+            )}
+            {headerRenameError && (
+              <p className="mt-1 text-xs flex items-center gap-1 text-red-500">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                {headerRenameError}
+              </p>
+            )}
             <p className="text-sm text-[var(--text-muted)] mt-0.5">
               {completedCount} of {totalCount} tasks completed
             </p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-3">
+
+        <div className="hidden sm:flex items-center gap-3 shrink-0">
           <div className="w-32 h-2 bg-[var(--border)] rounded-full overflow-hidden">
             <div
               className="h-full bg-[var(--primary)] rounded-full transition-all duration-500 ease-out"
@@ -412,17 +500,15 @@ export default function MainView({
               : "border-[var(--border)]"
           }`}
         >
-          <div className="flex gap-3">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyPress={handleKeyPress}
-              onFocus={() => setIsInputFocused(true)}
-              onBlur={() => setIsInputFocused(false)}
-              className="flex-1 px-4 py-3 bg-transparent text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none text-sm"
-              placeholder="What needs to be done?"
-            />
-          </div>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyPress={handleKeyPress}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
+            className="flex-1 px-4 py-3 bg-transparent text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none text-sm"
+            placeholder="What needs to be done?"
+          />
           <div className="flex flex-col sm:flex-row gap-2 px-2 pb-2">
             <div className="flex items-center gap-2 flex-1">
               <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
@@ -498,20 +584,75 @@ export default function MainView({
   );
 }
 
-// Extracted list card to avoid duplication
-function ListCard({ l, stats, onSelect, onDelete }) {
+// ── List Card with inline rename ─────────────────────────────────────────────
+function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameTitle, setRenameTitle] = useState(l.title);
+  const [renameError, setRenameError] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isRenaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isRenaming]);
+
+  const startRename = (e) => {
+    e.stopPropagation();
+    setRenameTitle(l.title);
+    setRenameError("");
+    setIsRenaming(true);
+  };
+
+  const cancelRename = (e) => {
+    e?.stopPropagation();
+    setIsRenaming(false);
+    setRenameError("");
+  };
+
+  const saveRename = async (e) => {
+    e?.stopPropagation();
+    if (!renameTitle.trim()) return;
+    const result = await onUpdate({ ...l, title: renameTitle.trim() });
+    if (result?.error) {
+      setRenameError(result.error);
+    } else {
+      setIsRenaming(false);
+      setRenameError("");
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") saveRename();
+    if (e.key === "Escape") cancelRename();
+  };
+
   return (
     <div
-      onClick={() => onSelect(l.id)}
+      onClick={() => !isRenaming && onSelect(l.id)}
       className="group relative p-6 rounded-2xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--primary)]/30 hover:bg-[var(--surface-hover)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
     >
-      <button
-        onClick={(e) => onDelete(l.id, e)}
-        className="absolute top-3 right-3 p-2 rounded-lg transition-all duration-200 z-10 md:opacity-0 md:group-hover:opacity-100 opacity-100 hover:bg-red-500/10 hover:text-red-500"
-        style={{ color: "var(--text-muted)" }}
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
+      {/* Top-right actions */}
+      <div className="absolute top-3 right-3 flex items-center gap-1 z-10 md:opacity-0 md:group-hover:opacity-100 opacity-100">
+        <button
+          onClick={startRename}
+          className="p-1.5 rounded-lg transition-all duration-200 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]"
+          style={{ color: "var(--text-muted)" }}
+          title="Rename list"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={(e) => onDelete(l.id, e)}
+          className="p-1.5 rounded-lg transition-all duration-200 hover:bg-red-500/10 hover:text-red-500"
+          style={{ color: "var(--text-muted)" }}
+          title="Delete list"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {stats.overdue > 0 && (
         <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
@@ -524,17 +665,54 @@ function ListCard({ l, stats, onSelect, onDelete }) {
         <ListTodo className="w-6 h-6 text-[var(--primary)]" />
       </div>
 
-      <h3 className="font-semibold text-lg text-[var(--text)] mb-1 truncate">
-        {l.title}
-      </h3>
-      <p className="text-xs text-[var(--text-muted)] mb-4">
-        Created{" "}
-        {new Date(l.createdAt).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })}
-      </p>
+      {isRenaming ? (
+        <div className="mb-3" onClick={(e) => e.stopPropagation()}>
+          <input
+            ref={inputRef}
+            value={renameTitle}
+            onChange={(e) => {
+              setRenameTitle(e.target.value);
+              if (renameError) setRenameError("");
+            }}
+            onKeyDown={handleKeyDown}
+            className="w-full px-2 py-1.5 mb-1 bg-[var(--background)] border border-[var(--primary)]/40 rounded-lg text-sm font-semibold text-[var(--text)] focus:outline-none"
+          />
+          {renameError && (
+            <p className="mb-1 text-xs flex items-center gap-1 text-red-500">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              {renameError}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={saveRename}
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--text-inverse)] rounded-lg text-xs font-medium transition-colors"
+            >
+              <Check className="w-3 h-3" /> Save
+            </button>
+            <button
+              onClick={cancelRename}
+              className="px-2 py-1 bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] text-[var(--text)] rounded-lg text-xs transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <h3 className="font-semibold text-lg text-[var(--text)] mb-1 truncate pr-16">
+            {l.title}
+          </h3>
+          <p className="text-xs text-[var(--text-muted)] mb-4">
+            Created{" "}
+            {new Date(l.createdAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
+        </>
+      )}
 
       <div className="mb-3">
         <div className="flex justify-between text-xs mb-1.5">
