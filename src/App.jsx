@@ -31,7 +31,6 @@ function AppContent() {
     reorderTodos,
   } = useData(user?.uid);
 
-  // Show loading while checking auth
   if (!authChecked || authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--background)]">
@@ -40,49 +39,47 @@ function AppContent() {
     );
   }
 
-  // Show login if not authenticated
   if (!user) {
     return <LoginScreen />;
   }
 
   const activeList = lists.find((l) => l.id === activeListId);
 
+  // Only show the sync badge when there's something worth showing
+  const showSyncBadge =
+    !isOnline || syncStatus === "syncing" || syncStatus === "error";
+
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--text)]">
-      {/* Sync Status Indicator */}
-      <div
-        className={`fixed top-4 left-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
-          syncStatus === "error"
-            ? "bg-red-500/20 text-red-500"
-            : !isOnline
-              ? "bg-amber-500/20 text-amber-500"
-              : syncStatus === "syncing"
-                ? "bg-blue-500/20 text-blue-500"
-                : "bg-emerald-500/20 text-emerald-500"
-        }`}
-      >
-        {!isOnline ? (
-          <>
-            <WifiOff className="w-3.5 h-3.5" />
-            <span>Offline</span>
-          </>
-        ) : syncStatus === "syncing" ? (
-          <>
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            <span>Syncing...</span>
-          </>
-        ) : syncStatus === "error" ? (
-          <>
-            <Wifi className="w-3.5 h-3.5" />
-            <span>Error</span>
-          </>
-        ) : (
-          <>
-            <Wifi className="w-3.5 h-3.5" />
-            <span>Synced</span>
-          </>
-        )}
-      </div>
+      {/* Sync Status — only visible when offline, syncing, or errored */}
+      {showSyncBadge && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
+            syncStatus === "error"
+              ? "bg-red-500/20 text-red-500"
+              : !isOnline
+                ? "bg-amber-500/20 text-amber-500"
+                : "bg-blue-500/20 text-blue-500"
+          }`}
+        >
+          {!isOnline ? (
+            <>
+              <WifiOff className="w-3.5 h-3.5" />
+              <span>Offline</span>
+            </>
+          ) : syncStatus === "syncing" ? (
+            <>
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              <span>Syncing...</span>
+            </>
+          ) : (
+            <>
+              <Wifi className="w-3.5 h-3.5" />
+              <span>Sync error</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Top Right Controls */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
@@ -101,12 +98,15 @@ function AppContent() {
         user={user}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-full">
         <MainView
           list={activeList}
           lists={lists}
           activeListId={activeListId}
           onBack={() => setActiveListId(null)}
+          onSelectList={setActiveListId}
+          onCreateList={saveList}
+          onDeleteList={deleteList}
           onCreateTodo={saveTodo}
           onUpdateTodo={updateTodo}
           onDeleteTodo={deleteTodo}

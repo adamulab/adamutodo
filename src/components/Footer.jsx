@@ -6,14 +6,6 @@ export default function Footer() {
           © 2026 TaskFlow. Built by{" "}
           <a href="https://adamucreates.online">AdamuCreates.</a>
         </p>
-        <div className="flex items-center gap-4">
-          <span className="hover:text-[var(--text)] cursor-pointer transition-colors">
-            Keyboard shortcuts
-          </span>
-          <span className="hover:text-[var(--text)] cursor-pointer transition-colors">
-            Help
-          </span>
-        </div>
       </div>
     </footer>
   );

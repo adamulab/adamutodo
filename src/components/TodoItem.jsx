@@ -10,7 +10,7 @@ import {
   Hourglass,
 } from "lucide-react";
 
-export default function TodoItem({ todo, list, lists, setLists }) {
+export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
   const [isOverdue, setIsOverdue] = useState(false);
@@ -56,13 +56,9 @@ export default function TodoItem({ todo, list, lists, setLists }) {
       );
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
 
-      if (days > 0) {
-        setTimeLeft(`${days}d ${hours}h left`);
-      } else if (hours > 0) {
-        setTimeLeft(`${hours}h ${minutes}m left`);
-      } else {
-        setTimeLeft(`${minutes}m left`);
-      }
+      if (days > 0) setTimeLeft(`${days}d ${hours}h left`);
+      else if (hours > 0) setTimeLeft(`${hours}h ${minutes}m left`);
+      else setTimeLeft(`${minutes}m left`);
     };
 
     calculateTimeLeft();
@@ -70,32 +66,12 @@ export default function TodoItem({ todo, list, lists, setLists }) {
     return () => clearInterval(timer);
   }, [todo.deadline, todo.done]);
 
-  const toggleTodo = () => {
-    const updated = lists.map((l) =>
-      l.id === list.id
-        ? {
-            ...l,
-            todos: l.todos.map((t) =>
-              t.id === todo.id ? { ...t, done: !t.done } : t,
-            ),
-          }
-        : l,
-    );
-    setLists(updated);
+  const toggleTodo = async () => {
+    await onUpdate(listId, todo.id, { done: !todo.done });
   };
 
-  const handleDeleteClick = (e) => {
-    e.stopPropagation();
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDelete = () => {
-    const updated = lists.map((l) =>
-      l.id === list.id
-        ? { ...l, todos: l.todos.filter((t) => t.id !== todo.id) }
-        : l,
-    );
-    setLists(updated);
+  const confirmDelete = async () => {
+    await onDelete(listId, todo.id);
     setShowDeleteConfirm(false);
   };
 
@@ -123,8 +99,7 @@ export default function TodoItem({ todo, list, lists, setLists }) {
 
   const formatDeadline = (dateString) => {
     if (!dateString) return null;
-    const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, {
+    return new Date(dateString).toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -139,13 +114,21 @@ export default function TodoItem({ todo, list, lists, setLists }) {
         style={style}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`group relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-300 ${isDragging ? "opacity-50 scale-105 shadow-2xl bg-[var(--surface-elevated)] border-[var(--primary)]/30" : ""} ${isOverdue && !todo.done ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--primary)]/20 hover:bg-[var(--surface-hover)]"}`}
+        className={`group relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-300 ${
+          isDragging
+            ? "opacity-50 scale-105 shadow-2xl bg-[var(--surface-elevated)] border-[var(--primary)]/30"
+            : isOverdue && !todo.done
+              ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50"
+              : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--primary)]/20 hover:bg-[var(--surface-hover)]"
+        }`}
       >
-        {/* Drag Handle - hidden on mobile */}
+        {/* Drag Handle */}
         <div
           {...attributes}
           {...listeners}
-          className={`hidden sm:flex cursor-grab active:cursor-grabbing p-1 rounded hover:bg-[var(--surface-hover)] transition-colors ${isHovered || isDragging ? "opacity-100" : "opacity-0"}`}
+          className={`hidden sm:flex cursor-grab active:cursor-grabbing p-1 rounded hover:bg-[var(--surface-hover)] transition-colors ${
+            isHovered || isDragging ? "opacity-100" : "opacity-0"
+          }`}
         >
           <GripVertical className="w-4 h-4 text-[var(--text-muted)]" />
         </div>
@@ -153,7 +136,13 @@ export default function TodoItem({ todo, list, lists, setLists }) {
         {/* Checkbox */}
         <button
           onClick={toggleTodo}
-          className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${todo.done ? "bg-[var(--primary)] border-[var(--primary)]" : isOverdue ? "border-red-500 hover:border-red-400" : "border-[var(--text-muted)] hover:border-[var(--primary)]/50"}`}
+          className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${
+            todo.done
+              ? "bg-[var(--primary)] border-[var(--primary)]"
+              : isOverdue
+                ? "border-red-500 hover:border-red-400"
+                : "border-[var(--text-muted)] hover:border-[var(--primary)]/50"
+          }`}
         >
           {todo.done && (
             <Check className="w-3.5 h-3.5 text-[var(--text-inverse)]" />
@@ -164,7 +153,13 @@ export default function TodoItem({ todo, list, lists, setLists }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <span
-              className={`text-sm transition-all duration-300 truncate ${todo.done ? "text-[var(--text-muted)] line-through" : isOverdue ? "text-red-500" : "text-[var(--text)]"}`}
+              className={`text-sm transition-all duration-300 truncate ${
+                todo.done
+                  ? "text-[var(--text-muted)] line-through"
+                  : isOverdue
+                    ? "text-red-500"
+                    : "text-[var(--text)]"
+              }`}
             >
               {todo.text}
             </span>
@@ -175,18 +170,23 @@ export default function TodoItem({ todo, list, lists, setLists }) {
               </span>
             )}
           </div>
-
           {todo.deadline && (
             <div className="flex items-center gap-3 mt-1.5">
               <div
-                className={`flex items-center gap-1.5 text-xs ${isOverdue && !todo.done ? "text-red-500" : "text-[var(--text-muted)]"}`}
+                className={`flex items-center gap-1.5 text-xs ${
+                  isOverdue && !todo.done
+                    ? "text-red-500"
+                    : "text-[var(--text-muted)]"
+                }`}
               >
                 <Clock className="w-3 h-3" />
                 <span>{formatDeadline(todo.deadline)}</span>
               </div>
               {!todo.done && timeLeft && (
                 <div
-                  className={`flex items-center gap-1 text-xs font-medium ${isOverdue ? "text-red-500" : "text-amber-500"}`}
+                  className={`flex items-center gap-1 text-xs font-medium ${
+                    isOverdue ? "text-red-500" : "text-amber-500"
+                  }`}
                 >
                   <Hourglass className="w-3 h-3" />
                   <span>{timeLeft}</span>
@@ -203,10 +203,13 @@ export default function TodoItem({ todo, list, lists, setLists }) {
           {getPriorityLabel(todo.priority)}
         </span>
 
-        {/* Delete Button - Always visible on mobile, hover on desktop */}
+        {/* Delete Button */}
         <button
-          onClick={handleDeleteClick}
-          className={`p-2 rounded-lg transition-all duration-200 md:opacity-0 md:group-hover:opacity-100 opacity-100 hover:bg-red-500/10 hover:text-red-500`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDeleteConfirm(true);
+          }}
+          className="p-2 rounded-lg transition-all duration-200 md:opacity-0 md:group-hover:opacity-100 opacity-100 hover:bg-red-500/10 hover:text-red-500"
           style={{ color: "var(--text-muted)" }}
         >
           <Trash2 className="w-4 h-4" />
@@ -215,8 +218,8 @@ export default function TodoItem({ todo, list, lists, setLists }) {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-scale-in mx-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl mx-4">
             <div className="flex items-center gap-3 mb-4 text-red-500">
               <div className="p-2 bg-red-500/10 rounded-full">
                 <AlertCircle className="w-6 h-6" />

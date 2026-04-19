@@ -6,7 +6,7 @@ import {
   onAuthChange,
   db,
 } from "../firebase";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 const AuthContext = createContext();
 
@@ -16,42 +16,43 @@ export function AuthProvider({ children }) {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthChange(async (firebaseUser) => {
+    const unsubscribe = onAuthChange((firebaseUser) => {
       if (firebaseUser) {
-        try {
-          const userRef = doc(db, "users", firebaseUser.uid);
-          const userSnap = await getDoc(userRef);
-
-          if (!userSnap.exists()) {
-            await setDoc(userRef, {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              createdAt: new Date().toISOString(), // Use ISO string instead of serverTimestamp
-              lastLogin: new Date().toISOString(),
-            });
-          } else {
-            await setDoc(
-              userRef,
-              { lastLogin: new Date().toISOString() },
-              { merge: true },
-            );
-          }
-        } catch (error) {
-          console.error("Firestore error:", error);
-          // Continue even if Firestore fails - user is still authenticated
-        }
-
+        // Set user immediately — don't wait for Firestore
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
         });
+
+        // Firestore profile write happens in the background
+        const userRef = doc(db, "users", firebaseUser.uid);
+        getDoc(userRef)
+          .then((snap) => {
+            if (!snap.exists()) {
+              return setDoc(userRef, {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+                createdAt: new Date().toISOString(),
+                lastLogin: new Date().toISOString(),
+              });
+            } else {
+              return setDoc(
+                userRef,
+                { lastLogin: new Date().toISOString() },
+                { merge: true },
+              );
+            }
+          })
+          .catch((err) => console.warn("Firestore profile sync error:", err));
       } else {
         setUser(null);
       }
+
+      // Mark auth as resolved right away
       setLoading(false);
       setAuthChecked(true);
     });
@@ -65,7 +66,6 @@ export function AuthProvider({ children }) {
       return result.user;
     } catch (error) {
       console.error("Login error:", error);
-
       if (error.code === "auth/configuration-not-found") {
         throw new Error(
           "Google Sign-In not configured. Please enable it in Firebase Console.",

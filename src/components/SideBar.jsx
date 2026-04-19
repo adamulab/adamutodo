@@ -1,38 +1,28 @@
 import { useState } from "react";
-import { Plus, X, Trash2, ListTodo, Calendar, AlertCircle } from "lucide-react";
+import { Plus, X, Trash2, Calendar, AlertCircle } from "lucide-react";
 import Logo from "../assets/taskflow.png";
 
 export default function Sidebar({
   lists,
-  setLists,
   activeListId,
-  setActiveListId,
+  onSelectList,
+  onCreateList,
+  onDeleteList,
   isOpen,
   setIsOpen,
 }) {
   const [newList, setNewList] = useState("");
   const [isHovered, setIsHovered] = useState(null);
 
-  const addList = () => {
+  const addList = async () => {
     if (!newList.trim()) return;
-    const item = {
-      id: Date.now(),
-      title: newList,
-      todos: [],
-      createdAt: new Date().toISOString(),
-    };
-    setLists([...lists, item]);
-    setActiveListId(item.id);
+    await onCreateList({ title: newList.trim() });
     setNewList("");
   };
 
-  const deleteList = (id, e) => {
+  const deleteList = async (id, e) => {
     e.stopPropagation();
-    const updated = lists.filter((list) => list.id !== id);
-    setLists(updated);
-    if (activeListId === id) {
-      setActiveListId(updated[0]?.id || null);
-    }
+    await onDeleteList(id);
   };
 
   const handleKeyPress = (e) => {
@@ -41,13 +31,14 @@ export default function Sidebar({
 
   const getOverdueCount = (list) => {
     const now = new Date().getTime();
-    return list.todos.filter(
+    return (list.todos || []).filter(
       (t) => !t.done && t.deadline && new Date(t.deadline).getTime() < now,
     ).length;
   };
 
   return (
     <>
+      {/* Mobile overlay */}
       <div
         className="fixed inset-0 z-40 transition-opacity duration-300 md:hidden"
         style={{
@@ -60,7 +51,9 @@ export default function Sidebar({
       />
 
       <aside
-        className={`fixed md:relative z-50 md:z-auto h-full w-80 transition-all duration-500 ease-out ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
+        className={`fixed md:relative z-50 md:z-auto h-full w-80 transition-all duration-500 ease-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
         style={{
           backgroundColor: "var(--surface-80)",
           backdropFilter: "blur(12px)",
@@ -69,12 +62,9 @@ export default function Sidebar({
         }}
       >
         <div className="flex flex-col h-full p-6">
+          {/* Header */}
           <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div>
-                <img src={Logo} alt="Logo" className="w-[200px]" />
-              </div>
-            </div>
+            <img src={Logo} alt="Logo" className="w-[200px]" />
             <button
               onClick={() => setIsOpen(false)}
               className="md:hidden p-2 rounded-lg transition-colors"
@@ -90,6 +80,7 @@ export default function Sidebar({
             </button>
           </div>
 
+          {/* New list input */}
           <div className="relative mb-6 group">
             <input
               value={newList}
@@ -118,6 +109,7 @@ export default function Sidebar({
             </button>
           </div>
 
+          {/* List items */}
           <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
             {lists.length === 0 && (
               <div
@@ -130,8 +122,10 @@ export default function Sidebar({
 
             {lists.map((list) => {
               const isActive = activeListId === list.id;
-              const todoCount = list.todos.length;
-              const completedCount = list.todos.filter((t) => t.done).length;
+              const todoCount = (list.todos || []).length;
+              const completedCount = (list.todos || []).filter(
+                (t) => t.done,
+              ).length;
               const overdueCount = getOverdueCount(list);
 
               return (
@@ -140,7 +134,7 @@ export default function Sidebar({
                   onMouseEnter={() => setIsHovered(list.id)}
                   onMouseLeave={() => setIsHovered(null)}
                   onClick={() => {
-                    setActiveListId(list.id);
+                    onSelectList(list.id);
                     setIsOpen(false);
                   }}
                   className="group relative flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-300"
@@ -149,7 +143,6 @@ export default function Sidebar({
                       ? "var(--primary-muted)"
                       : "transparent",
                     border: `1px solid ${isActive ? "var(--primary)" : "transparent"}`,
-                    borderOpacity: isActive ? 0.2 : 0,
                   }}
                 >
                   <div
@@ -240,6 +233,7 @@ export default function Sidebar({
             })}
           </div>
 
+          {/* Footer stats */}
           <div
             className="mt-6 pt-6"
             style={{ borderTop: "1px solid var(--border)" }}
@@ -250,7 +244,8 @@ export default function Sidebar({
             >
               <span>{lists.length} lists</span>
               <span>
-                {lists.reduce((acc, l) => acc + l.todos.length, 0)} tasks
+                {lists.reduce((acc, l) => acc + (l.todos || []).length, 0)}{" "}
+                tasks
               </span>
             </div>
           </div>
