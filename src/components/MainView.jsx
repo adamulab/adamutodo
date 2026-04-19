@@ -74,6 +74,7 @@ export default function MainView({
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isCreatingList, setIsCreatingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
+  const [newListError, setNewListError] = useState("");
   const [deleteModal, setDeleteModal] = useState({
     isOpen: false,
     type: null,
@@ -96,9 +97,15 @@ export default function MainView({
 
   const addList = async () => {
     if (!newListTitle.trim()) return;
-    await onCreateList({ title: newListTitle.trim() });
-    setNewListTitle("");
-    setIsCreatingList(false);
+    setNewListError("");
+    const result = await onCreateList({ title: newListTitle.trim() });
+    if (result?.error) {
+      setNewListError(result.error);
+    } else {
+      setNewListTitle("");
+      setNewListError("");
+      setIsCreatingList(false);
+    }
   };
 
   const handleListKeyDown = (e) => {
@@ -275,11 +282,20 @@ export default function MainView({
                     autoFocus
                     type="text"
                     value={newListTitle}
-                    onChange={(e) => setNewListTitle(e.target.value)}
+                    onChange={(e) => {
+                      setNewListTitle(e.target.value);
+                      if (newListError) setNewListError("");
+                    }}
                     onKeyDown={handleListKeyDown}
                     placeholder="List name..."
-                    className="input-field mb-3"
+                    className="input-field mb-1"
                   />
+                  {newListError && (
+                    <p className="mb-2 text-xs flex items-center gap-1 text-red-500">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {newListError}
+                    </p>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={addList}
@@ -292,6 +308,7 @@ export default function MainView({
                       onClick={() => {
                         setIsCreatingList(false);
                         setNewListTitle("");
+                        setNewListError("");
                       }}
                       className="px-3 py-2 bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] rounded-lg text-xs font-medium text-[var(--text)] transition-colors"
                     >

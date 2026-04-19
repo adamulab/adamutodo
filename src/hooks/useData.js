@@ -5,9 +5,11 @@ import {
   setDoc,
   deleteDoc,
   serverTimestamp,
+  query,
+  orderBy,
 } from "firebase/firestore";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── local storage helpers ───────────────────────────────────────────────────
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -37,9 +39,9 @@ function setQueue(userId, queue) {
   localStorage.setItem(`sync-queue-${userId}`, JSON.stringify(queue));
 }
 
+// Only store plain JSON in the queue — never Firestore sentinels
 function enqueue(userId, type, data) {
   const queue = getQueue(userId);
-  // Deduplicate: replace existing entry for same list id + type
   const filtered = queue.filter(
     (item) => !(item.type === type && item.data?.id === data?.id),
   );
@@ -55,13 +57,49 @@ export function useData(userId) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState("idle");
 
-  // Keep a ref so callbacks always see the latest lists without re-creating
+  // Ref so callbacks always read latest lists without stale closure
   const listsRef = useRef(lists);
   useEffect(() => {
     listsRef.current = lists;
   }, [lists]);
 
-  // ── online / offline events ────────────────────────────────────────────────
+  // Track IDs deleted locally but not yet confirmed by Firestore,
+  // so onSnapshot doesn't resurrect them from IndexedDB cache
+  const pendingDeletes = useRef(new Set());
+
+  // ── drain offline queue ───────────────────────────────────────────────────
+  const drainQueue = useCallback(async (uid) => {
+    if (!uid) return;
+    const queue = getQueue(uid);
+    if (queue.length === 0) return;
+
+    setSyncStatus("syncing");
+    const failed = [];
+
+    for (const item of queue) {
+      try {
+        if (item.type === "save") {
+          await setDoc(getListRef(uid, item.data.id), {
+            ...item.data,
+            updatedAt: new Date().toISOString(),
+            syncedAt: serverTimestamp(), // added here, not stored in queue
+          });
+          pendingDeletes.current.delete(item.data.id);
+        } else if (item.type === "delete") {
+          await deleteDoc(getListRef(uid, item.data.id));
+          pendingDeletes.current.delete(item.data.id);
+        }
+      } catch (err) {
+        console.warn("Queue drain failed:", item, err);
+        failed.push(item);
+      }
+    }
+
+    setQueue(uid, failed);
+    setSyncStatus(failed.length === 0 ? "synced" : "error");
+  }, []);
+
+  // ── online / offline listeners ────────────────────────────────────────────
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -75,40 +113,9 @@ export function useData(userId) {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [userId]);
+  }, [userId, drainQueue]);
 
-  // ── drain queue when we come back online ──────────────────────────────────
-  const drainQueue = useCallback(async (uid) => {
-    if (!uid) return;
-    const queue = getQueue(uid);
-    if (queue.length === 0) return;
-
-    setSyncStatus("syncing");
-    const failed = [];
-
-    for (const item of queue) {
-      try {
-        if (item.type === "save") {
-          const ref = getListRef(uid, item.data.id);
-          await setDoc(ref, {
-            ...item.data,
-            updatedAt: new Date().toISOString(),
-            syncedAt: serverTimestamp(),
-          });
-        } else if (item.type === "delete") {
-          await deleteDoc(getListRef(uid, item.data.id));
-        }
-      } catch (err) {
-        console.warn("Queue drain failed for item:", item, err);
-        failed.push(item);
-      }
-    }
-
-    setQueue(uid, failed);
-    setSyncStatus(failed.length === 0 ? "synced" : "error");
-  }, []);
-
-  // ── Firestore real-time subscription ──────────────────────────────────────
+  // ── Firestore real-time subscription ─────────────────────────────────────
   useEffect(() => {
     if (!userId) {
       setLists([]);
@@ -116,36 +123,36 @@ export function useData(userId) {
       return;
     }
 
-    // Show cached data immediately
+    // Hydrate from cache instantly so UI isn't blank while Firestore connects
     const cached = getCachedLists(userId);
     if (cached.length > 0) {
-      setLists(cached);
-      setLoading(false);
+      setLists(cached.filter((l) => !pendingDeletes.current.has(l.id)));
     }
+    setLoading(false);
 
-    const ref = getListsRef(userId);
+    // orderBy on server ensures consistent sort across all devices
+    const listsQuery = query(getListsRef(userId), orderBy("updatedAt", "desc"));
+
     const unsubscribe = onSnapshot(
-      ref,
+      listsQuery,
       (snapshot) => {
         const fetched = snapshot.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+          // Filter ghost-resurrected items
+          .filter((l) => !pendingDeletes.current.has(l.id));
 
         setLists(fetched);
         setCachedLists(userId, fetched);
-        setLoading(false);
         setSyncStatus("synced");
 
-        // Drain any queued offline writes now that we have a connection
+        // Drain any queued writes now we have a live connection
         drainQueue(userId);
       },
       (error) => {
         console.error("Firestore snapshot error:", error);
         setSyncStatus("error");
-        // Fall back to cache
         const fallback = getCachedLists(userId);
-        setLists(fallback);
-        setLoading(false);
+        setLists(fallback.filter((l) => !pendingDeletes.current.has(l.id)));
       },
     );
 
@@ -157,54 +164,71 @@ export function useData(userId) {
     async (list) => {
       if (!userId) return;
 
-      const now = new Date().toISOString();
-      const fullList = { ...list, updatedAt: now };
+      const fullList = { ...list, updatedAt: new Date().toISOString() };
 
-      // 1. Update local state immediately
+      // 1. Optimistic local update — UI responds immediately
       setLists((prev) => {
         const exists = prev.some((l) => l.id === fullList.id);
         const next = exists
           ? prev.map((l) => (l.id === fullList.id ? fullList : l))
           : [fullList, ...prev];
+        next.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
         setCachedLists(userId, next);
         return next;
       });
 
-      // 2. Try Firestore — queue if offline or failed
+      // 2. Attempt Firestore write; queue if offline or failed
       setSyncStatus("syncing");
       try {
-        const ref = getListRef(userId, fullList.id);
-        await setDoc(ref, {
+        await setDoc(getListRef(userId, fullList.id), {
           ...fullList,
           syncedAt: serverTimestamp(),
         });
         setSyncStatus("synced");
       } catch (error) {
-        console.warn("Firestore write failed, queuing:", error);
-        setSyncStatus(navigator.onLine ? "error" : "synced"); // show synced when offline (queued)
+        console.warn("Firestore write failed, queuing:", error.message);
+        // fullList has no Firestore sentinels — safe to JSON-serialize
         enqueue(userId, "save", fullList);
+        setSyncStatus(navigator.onLine ? "error" : "synced");
       }
     },
     [userId],
   );
 
-  // ── public API ─────────────────────────────────────────────────────────────
+  // ── public API ────────────────────────────────────────────────────────────
 
-  /** Create or update a list. Pass { title } for a new list; pass the full list object to update. */
+  /**
+   * Create or update a list.
+   * - Pass { title } to create a new list.
+   * - Pass a full list object (with id) to update.
+   * Returns { error: string } on validation failure, null on success.
+   */
   const saveList = useCallback(
     async (listData) => {
+      const trimmedTitle = listData.title?.trim();
+      if (!trimmedTitle) return { error: "Title is required" };
+
+      // Case-insensitive duplicate check, excluding the list being updated
+      const isDuplicate = listsRef.current.some(
+        (l) =>
+          l.title.trim().toLowerCase() === trimmedTitle.toLowerCase() &&
+          l.id !== listData.id,
+      );
+      if (isDuplicate) return { error: "A list with that name already exists" };
+
       const isNew = !listData.id;
       const list = isNew
         ? {
             ...listData,
+            title: trimmedTitle,
             id: generateId(),
-            todos: listData.todos ?? [],
+            todos: [],
             createdAt: new Date().toISOString(),
           }
-        : listData;
+        : { ...listData, title: trimmedTitle };
 
       await persistList(list);
-      return list; // return so callers can get the id if needed
+      return null; // null = success
     },
     [persistList],
   );
@@ -213,7 +237,9 @@ export function useData(userId) {
     async (listId) => {
       if (!userId) return;
 
-      // Optimistic local removal
+      // Mark pending so snapshot doesn't bring it back before delete confirms
+      pendingDeletes.current.add(listId);
+
       setLists((prev) => {
         const next = prev.filter((l) => l.id !== listId);
         setCachedLists(userId, next);
@@ -222,9 +248,11 @@ export function useData(userId) {
 
       try {
         await deleteDoc(getListRef(userId, listId));
+        pendingDeletes.current.delete(listId);
       } catch (error) {
-        console.warn("Delete failed, queuing:", error);
+        console.warn("Delete failed, queuing:", error.message);
         enqueue(userId, "delete", { id: listId });
+        // Keep in pendingDeletes until drainQueue confirms the delete
       }
     },
     [userId],

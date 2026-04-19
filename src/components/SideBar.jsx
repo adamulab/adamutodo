@@ -12,12 +12,19 @@ export default function Sidebar({
   setIsOpen,
 }) {
   const [newList, setNewList] = useState("");
+  const [listError, setListError] = useState("");
   const [isHovered, setIsHovered] = useState(null);
 
   const addList = async () => {
     if (!newList.trim()) return;
-    await onCreateList({ title: newList.trim() });
-    setNewList("");
+    setListError("");
+    const result = await onCreateList({ title: newList.trim() });
+    if (result?.error) {
+      setListError(result.error);
+    } else {
+      setNewList("");
+      setListError("");
+    }
   };
 
   const deleteList = async (id, e) => {
@@ -81,32 +88,46 @@ export default function Sidebar({
           </div>
 
           {/* New list input */}
-          <div className="relative mb-6 group">
-            <input
-              value={newList}
-              onChange={(e) => setNewList(e.target.value)}
-              onKeyPress={handleKeyPress}
-              className="input-field pr-12"
-              placeholder="Create new list..."
-            />
-            <button
-              onClick={addList}
-              disabled={!newList.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all duration-200 shadow-lg disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: newList.trim()
-                  ? "var(--primary)"
-                  : "var(--surface-elevated)",
-                boxShadow: newList.trim()
-                  ? "0 10px 15px -3px var(--primary-20)"
-                  : "none",
-              }}
-            >
-              <Plus
-                className="w-4 h-4"
-                style={{ color: "var(--text-inverse)" }}
+          <div className="mb-4">
+            <div className="relative group">
+              <input
+                value={newList}
+                onChange={(e) => {
+                  setNewList(e.target.value);
+                  if (listError) setListError("");
+                }}
+                onKeyPress={handleKeyPress}
+                className="input-field pr-12"
+                placeholder="Create new list..."
               />
-            </button>
+              <button
+                onClick={addList}
+                disabled={!newList.trim()}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all duration-200 shadow-lg disabled:cursor-not-allowed"
+                style={{
+                  backgroundColor: newList.trim()
+                    ? "var(--primary)"
+                    : "var(--surface-elevated)",
+                  boxShadow: newList.trim()
+                    ? "0 10px 15px -3px var(--primary-20)"
+                    : "none",
+                }}
+              >
+                <Plus
+                  className="w-4 h-4"
+                  style={{ color: "var(--text-inverse)" }}
+                />
+              </button>
+            </div>
+            {listError && (
+              <p
+                className="mt-1.5 text-xs flex items-center gap-1"
+                style={{ color: "#ef4444" }}
+              >
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                {listError}
+              </p>
+            )}
           </div>
 
           {/* List items */}
