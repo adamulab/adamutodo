@@ -14,6 +14,7 @@ import {
   Loader2,
   Pencil,
   Check,
+  LayoutGrid,
 } from "lucide-react";
 import TodoItem from "./TodoItem";
 import { DndContext, closestCenter } from "@dnd-kit/core";
@@ -24,28 +25,69 @@ import {
 } from "@dnd-kit/sortable";
 import AdUnit from "./AdUnit";
 
-function DeleteConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
+// ── Confirm modal ─────────────────────────────────────────────────────────────
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-        <div className="flex items-center gap-3 mb-4 text-red-500">
-          <div className="p-2 bg-red-500/10 rounded-full">
-            <AlertCircle className="w-6 h-6" />
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      style={{
+        backgroundColor: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <div
+        className="rounded-2xl border p-6 max-w-sm w-full shadow-2xl"
+        style={{
+          backgroundColor: "var(--surface)",
+          borderColor: "var(--border)",
+        }}
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <div
+            className="p-2 rounded-xl"
+            style={{ backgroundColor: "rgba(239,68,68,0.1)" }}
+          >
+            <AlertCircle className="w-5 h-5 text-red-400" />
           </div>
-          <h3 className="text-lg font-semibold text-[var(--text)]">{title}</h3>
+          <h3 className="font-semibold" style={{ color: "var(--text)" }}>
+            {title}
+          </h3>
         </div>
-        <p className="text-sm text-[var(--text-muted)] mb-6">{message}</p>
-        <div className="flex gap-3">
+        <p
+          className="text-sm mb-5 leading-relaxed"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {message}
+        </p>
+        <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] text-[var(--text)] rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            style={{
+              backgroundColor: "var(--surface-elevated)",
+              color: "var(--text)",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "var(--surface-hover)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor =
+                "var(--surface-elevated)")
+            }
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors"
+            style={{ backgroundColor: "#ef4444" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "#dc2626")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "#ef4444")
+            }
           >
             Delete
           </button>
@@ -55,6 +97,217 @@ function DeleteConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
   );
 }
 
+// ── List card ─────────────────────────────────────────────────────────────────
+function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
+  const [renaming, setRenaming] = useState(false);
+  const [title, setTitle] = useState(l.title);
+  const [renameErr, setRenameErr] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (renaming) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [renaming]);
+
+  const startRename = (e) => {
+    e.stopPropagation();
+    setTitle(l.title);
+    setRenameErr("");
+    setRenaming(true);
+  };
+  const cancelRename = (e) => {
+    e?.stopPropagation();
+    setRenaming(false);
+    setRenameErr("");
+  };
+  const saveRename = async (e) => {
+    e?.stopPropagation();
+    if (!title.trim()) return;
+    const result = await onUpdate({ ...l, title: title.trim() });
+    if (result?.error) {
+      setRenameErr(result.error);
+    } else {
+      setRenaming(false);
+      setRenameErr("");
+    }
+  };
+
+  const progressColor = stats.overdue > 0 ? "#f87171" : "var(--primary)";
+
+  return (
+    <div
+      onClick={() => !renaming && onSelect(l.id)}
+      className="group relative flex flex-col p-5 rounded-2xl border cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+      style={{
+        backgroundColor: "var(--surface)",
+        borderColor: "var(--border)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "var(--primary)";
+        e.currentTarget.style.borderOpacity = "0.4";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "var(--border)";
+      }}
+    >
+      {/* Top row: icon + actions */}
+      <div className="flex items-start justify-between mb-3">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
+          style={{ backgroundColor: "var(--primary-muted)" }}
+        >
+          <ListTodo className="w-5 h-5" style={{ color: "var(--primary)" }} />
+        </div>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={startRename}
+            className="p-1.5 rounded-xl transition-colors hover:bg-[var(--primary)]/10"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = "var(--primary)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--text-muted)")
+            }
+            title="Rename"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={(e) => onDelete(l.id, e)}
+            className="p-1.5 rounded-xl transition-colors hover:bg-red-500/10"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--text-muted)")
+            }
+            title="Delete"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Title / rename */}
+      {renaming ? (
+        <div onClick={(e) => e.stopPropagation()} className="mb-2 space-y-1.5">
+          <input
+            ref={inputRef}
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (renameErr) setRenameErr("");
+            }}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") saveRename();
+              if (e.key === "Escape") cancelRename();
+            }}
+            className="w-full px-3 py-1.5 rounded-xl text-sm font-semibold outline-none"
+            style={{
+              backgroundColor: "var(--background)",
+              border: "1px solid var(--primary)",
+              color: "var(--text)",
+            }}
+          />
+          {renameErr && (
+            <p className="text-xs flex items-center gap-1 text-red-400">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              {renameErr}
+            </p>
+          )}
+          <div className="flex gap-1.5">
+            <button
+              onClick={saveRename}
+              className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-xs font-semibold transition-colors"
+              style={{
+                backgroundColor: "var(--primary)",
+                color: "var(--text-inverse)",
+              }}
+            >
+              <Check className="w-3 h-3" />
+              Save
+            </button>
+            <button
+              onClick={cancelRename}
+              className="px-2 py-1 rounded-lg text-xs transition-colors"
+              style={{
+                backgroundColor: "var(--surface-elevated)",
+                color: "var(--text-muted)",
+              }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <h3
+            className="font-semibold text-base mb-0.5 truncate pr-2"
+            style={{ color: "var(--text)" }}
+          >
+            {l.title}
+          </h3>
+          <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+            Created{" "}
+            {new Date(l.createdAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
+        </>
+      )}
+
+      {/* Progress */}
+      <div className="mt-auto">
+        <div className="flex justify-between text-xs mb-1.5">
+          <span style={{ color: "var(--text-muted)" }}>
+            {stats.completed}/{stats.total} done
+          </span>
+          <span
+            className="font-medium"
+            style={{ color: stats.overdue > 0 ? "#f87171" : "var(--primary)" }}
+          >
+            {stats.overdue > 0
+              ? `${stats.overdue} overdue`
+              : `${Math.round(stats.progress)}%`}
+          </span>
+        </div>
+        <div
+          className="h-1.5 rounded-full overflow-hidden"
+          style={{ backgroundColor: "var(--border)" }}
+        >
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${stats.progress}%`,
+              backgroundColor: progressColor,
+            }}
+          />
+        </div>
+
+        <div
+          className="flex items-center gap-3 mt-3 text-xs"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <span className="flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            {stats.completed}
+          </span>
+          <span className="flex items-center gap-1">
+            <Circle className="w-3.5 h-3.5" />
+            {stats.total - stats.completed}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 export default function MainView({
   list,
   lists,
@@ -74,107 +327,97 @@ export default function MainView({
   const [text, setText] = useState("");
   const [priority, setPriority] = useState("medium");
   const [deadline, setDeadline] = useState("");
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const [isCreatingList, setIsCreatingList] = useState(false);
-  const [newListTitle, setNewListTitle] = useState("");
-  const [newListError, setNewListError] = useState("");
-  const [deleteModal, setDeleteModal] = useState({
-    isOpen: false,
-    type: null,
-    item: null,
-  });
+  const [inputFocused, setInputFocused] = useState(false);
+  const [creatingList, setCreatingList] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newTitleErr, setNewTitleErr] = useState("");
+  const [deleteModal, setDeleteModal] = useState({ open: false, item: null });
 
-  // Rename active list state (list view header)
-  const [isRenamingHeader, setIsRenamingHeader] = useState(false);
+  // Header rename
+  const [renamingHeader, setRenamingHeader] = useState(false);
   const [headerTitle, setHeaderTitle] = useState("");
-  const [headerRenameError, setHeaderRenameError] = useState("");
+  const [headerRenameErr, setHeaderRenameErr] = useState("");
   const headerInputRef = useRef(null);
 
   useEffect(() => {
-    if (isRenamingHeader && headerInputRef.current) {
-      headerInputRef.current.focus();
-      headerInputRef.current.select();
+    if (renamingHeader) {
+      headerInputRef.current?.focus();
+      headerInputRef.current?.select();
     }
-  }, [isRenamingHeader]);
+  }, [renamingHeader]);
 
   const safeLists = Array.isArray(lists) ? lists : [];
 
-  const getListStats = (l) => {
-    if (!l || !Array.isArray(l.todos))
-      return { total: 0, completed: 0, overdue: 0, progress: 0 };
+  const getStats = (l) => {
+    if (!l?.todos) return { total: 0, completed: 0, overdue: 0, progress: 0 };
     const total = l.todos.length;
     const completed = l.todos.filter((t) => t.done).length;
     const overdue = l.todos.filter(
       (t) => !t.done && t.deadline && new Date(t.deadline) < new Date(),
     ).length;
-    const progress = total > 0 ? (completed / total) * 100 : 0;
-    return { total, completed, overdue, progress };
+    return {
+      total,
+      completed,
+      overdue,
+      progress: total ? (completed / total) * 100 : 0,
+    };
   };
 
-  // ── Create list ─────────────────────────────────────────────────────────────
+  // Create list
   const addList = async () => {
-    if (!newListTitle.trim()) return;
-    setNewListError("");
-    const result = await onCreateList({ title: newListTitle.trim() });
+    const t = newTitle.trim();
+    if (!t) return;
+    setNewTitleErr("");
+    const result = await onCreateList({ title: t });
     if (result?.error) {
-      setNewListError(result.error);
+      setNewTitleErr(result.error);
     } else {
-      setNewListTitle("");
-      setNewListError("");
-      setIsCreatingList(false);
+      setNewTitle("");
+      setNewTitleErr("");
+      setCreatingList(false);
     }
   };
 
-  const handleListKeyDown = (e) => {
-    if (e.key === "Enter") addList();
-    if (e.key === "Escape") {
-      setIsCreatingList(false);
-      setNewListTitle("");
-      setNewListError("");
-    }
-  };
-
-  // ── Rename active list (header) ─────────────────────────────────────────────
+  // Rename header
   const startHeaderRename = () => {
     setHeaderTitle(list.title);
-    setHeaderRenameError("");
-    setIsRenamingHeader(true);
+    setHeaderRenameErr("");
+    setRenamingHeader(true);
   };
-
   const cancelHeaderRename = () => {
-    setIsRenamingHeader(false);
-    setHeaderRenameError("");
+    setRenamingHeader(false);
+    setHeaderRenameErr("");
   };
-
   const saveHeaderRename = async () => {
-    if (!headerTitle.trim()) return;
-    const result = await onUpdateList({ ...list, title: headerTitle.trim() });
+    const t = headerTitle.trim();
+    if (!t) return;
+    const result = await onUpdateList({ ...list, title: t });
     if (result?.error) {
-      setHeaderRenameError(result.error);
+      setHeaderRenameErr(result.error);
     } else {
-      setIsRenamingHeader(false);
-      setHeaderRenameError("");
+      setRenamingHeader(false);
+      setHeaderRenameErr("");
     }
   };
 
-  const handleHeaderRenameKeyDown = (e) => {
+  const handleHeaderKey = (e) => {
     if (e.key === "Enter") saveHeaderRename();
     if (e.key === "Escape") cancelHeaderRename();
   };
 
-  // ── Delete list ─────────────────────────────────────────────────────────────
   const confirmDeleteList = (listId, e) => {
     e.stopPropagation();
-    const listToDelete = safeLists.find((l) => l.id === listId);
-    setDeleteModal({ isOpen: true, type: "list", item: listToDelete });
+    setDeleteModal({
+      open: true,
+      item: safeLists.find((l) => l.id === listId),
+    });
   };
 
-  const executeDeleteList = async () => {
+  const executeDelete = async () => {
     await onDeleteList(deleteModal.item.id);
-    setDeleteModal({ isOpen: false, type: null, item: null });
+    setDeleteModal({ open: false, item: null });
   };
 
-  // ── Add todo ────────────────────────────────────────────────────────────────
   const addTodo = async () => {
     if (!text.trim() || !list) return;
     await onCreateTodo(list.id, {
@@ -187,101 +430,152 @@ export default function MainView({
     setDeadline("");
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") addTodo();
-  };
-
-  const handleDragEnd = async (event) => {
-    const { active, over } = event;
+  const handleDragEnd = async ({ active, over }) => {
     if (!over || active.id === over.id || !list) return;
-    const oldIndex = list.todos.findIndex((t) => t.id === active.id);
-    const newIndex = list.todos.findIndex((t) => t.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(list.todos, oldIndex, newIndex);
-    await onReorderTodos(list.id, reordered);
+    const oi = list.todos.findIndex((t) => t.id === active.id);
+    const ni = list.todos.findIndex((t) => t.id === over.id);
+    if (oi < 0 || ni < 0) return;
+    await onReorderTodos(list.id, arrayMove(list.todos, oi, ni));
   };
 
-  const getPriorityColor = (p) => {
-    switch (p) {
-      case "urgent":
-        return "text-red-500 bg-red-500/10 border-red-500/20";
-      case "medium":
-        return "text-amber-500 bg-amber-500/10 border-amber-500/20";
-      default:
-        return "text-emerald-500 bg-emerald-500/10 border-emerald-500/20";
-    }
+  const priorityBtnClass = (p) => {
+    if (p === "urgent") return "text-red-400 bg-red-500/10 border-red-500/20";
+    if (p === "medium")
+      return "text-amber-400 bg-amber-500/10 border-amber-500/20";
+    return "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
   };
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center h-full bg-[var(--background)]">
-        <Loader2 className="w-8 h-8 animate-spin text-[var(--primary)]" />
+      <div
+        className="flex-1 flex items-center justify-center h-full"
+        style={{ backgroundColor: "var(--background)" }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <Loader2
+            className="w-8 h-8 animate-spin"
+            style={{ color: "var(--primary)" }}
+          />
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Loading your lists…
+          </p>
+        </div>
       </div>
     );
   }
 
   // ── GRID VIEW ───────────────────────────────────────────────────────────────
   if (!list) {
+    const totalTasks = safeLists.reduce(
+      (a, l) => a + (l.todos?.length || 0),
+      0,
+    );
+    const doneTasks = safeLists.reduce(
+      (a, l) => a + (l.todos || []).filter((t) => t.done).length,
+      0,
+    );
+
     return (
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--background)]">
-        <header className="flex items-center justify-between px-8 py-6 border-b border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-sm shrink-0">
+      <div
+        className="flex-1 flex flex-col h-full overflow-hidden"
+        style={{ backgroundColor: "var(--background)" }}
+      >
+        {/* Header */}
+        <header
+          className="shrink-0 flex items-center justify-between px-6 sm:px-8 py-5 border-b"
+          style={{
+            borderColor: "var(--border)",
+            backgroundColor: "var(--surface)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
           <div className="flex items-center gap-4">
             <button
               onClick={onOpenSidebar}
-              className="md:hidden p-2 -ml-2 hover:bg-[var(--surface-hover)] rounded-lg transition-colors"
+              className="md:hidden p-2 rounded-xl hover:bg-[var(--surface-hover)] transition-colors"
             >
-              <Menu className="w-5 h-5 text-[var(--text-muted)]" />
+              <Menu
+                className="w-5 h-5"
+                style={{ color: "var(--text-muted)" }}
+              />
             </button>
             <div>
-              <h2 className="text-2xl font-bold text-[var(--text)] tracking-tight">
+              <h1
+                className="text-xl font-bold tracking-tight"
+                style={{ color: "var(--text)" }}
+              >
                 My Lists
-              </h2>
-              <p className="text-sm text-[var(--text-muted)] mt-0.5">
-                {safeLists.length} lists ·{" "}
-                {safeLists.reduce((acc, l) => acc + (l.todos?.length || 0), 0)}{" "}
-                total tasks
-              </p>
+              </h1>
+              {totalTasks > 0 && (
+                <p
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {doneTasks}/{totalTasks} tasks complete · {safeLists.length}{" "}
+                  list{safeLists.length !== 1 ? "s" : ""}
+                </p>
+              )}
             </div>
           </div>
         </header>
 
-        <div className="px-8 pt-4 shrink-0">
+        {/* Ad */}
+        <div className="px-6 sm:px-8 pt-4 shrink-0">
           <AdUnit
             slot="1234567890"
             format="horizontal"
             responsive={true}
-            className="w-full max-h-[90px]"
+            className="w-full"
             style={{ minHeight: "90px", maxHeight: "90px" }}
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
-          {safeLists.length === 0 && !isCreatingList ? (
-            <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
-              <div className="w-20 h-20 mb-6 rounded-2xl bg-[var(--surface)] flex items-center justify-center border border-[var(--border)]">
-                <ListTodo className="w-10 h-10 text-[var(--text-muted)]" />
+        <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-6 custom-scrollbar">
+          {safeLists.length === 0 && !creatingList ? (
+            /* Empty state */
+            <div className="h-full flex flex-col items-center justify-center text-center">
+              <div
+                className="w-20 h-20 mb-5 rounded-2xl flex items-center justify-center border-2 border-dashed"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <LayoutGrid
+                  className="w-9 h-9"
+                  style={{ color: "var(--text-muted)" }}
+                />
               </div>
-              <p className="text-xl font-semibold text-[var(--text)] mb-2">
+              <h2
+                className="text-lg font-semibold mb-2"
+                style={{ color: "var(--text)" }}
+              >
                 No lists yet
-              </p>
-              <p className="text-sm mb-6">
-                Create your first list to get started
+              </h2>
+              <p
+                className="text-sm mb-6 max-w-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Create your first list to start organising your tasks and
+                staying on top of everything.
               </p>
               <button
-                onClick={() => setIsCreatingList(true)}
-                className="px-6 py-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-xl text-[var(--text-inverse)] font-medium transition-all duration-200 flex items-center gap-2"
+                onClick={() => setCreatingList(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-95 shadow-lg"
+                style={{
+                  backgroundColor: "var(--primary)",
+                  color: "var(--text-inverse)",
+                  boxShadow: "0 4px 14px var(--primary-20)",
+                }}
               >
-                <Plus className="w-5 h-5" />
-                Create List
+                <Plus className="w-4 h-4" />
+                Create your first list
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {safeLists.slice(0, 2).map((l) => (
                 <ListCard
                   key={l.id}
                   l={l}
-                  stats={getListStats(l)}
+                  stats={getStats(l)}
                   onSelect={onSelectList}
                   onDelete={confirmDeleteList}
                   onUpdate={onUpdateList}
@@ -289,13 +583,19 @@ export default function MainView({
               ))}
 
               {safeLists.length >= 2 && (
-                <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center min-h-[200px]">
+                <div
+                  className="rounded-2xl border flex items-center justify-center min-h-[180px]"
+                  style={{
+                    backgroundColor: "var(--surface)",
+                    borderColor: "var(--border)",
+                  }}
+                >
                   <AdUnit
                     slot="2345678901"
                     format="fluid"
                     responsive={true}
                     className="w-full h-full"
-                    style={{ minHeight: "180px" }}
+                    style={{ minHeight: "160px" }}
                   />
                 </div>
               )}
@@ -304,71 +604,121 @@ export default function MainView({
                 <ListCard
                   key={l.id}
                   l={l}
-                  stats={getListStats(l)}
+                  stats={getStats(l)}
                   onSelect={onSelectList}
                   onDelete={confirmDeleteList}
                   onUpdate={onUpdateList}
                 />
               ))}
 
-              {isCreatingList ? (
-                <div className="p-6 rounded-2xl bg-[var(--surface)] border border-[var(--primary)]/30 shadow-lg">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--primary-muted)] flex items-center justify-center">
-                      <Plus className="w-5 h-5 text-[var(--primary)]" />
+              {/* Create card */}
+              {creatingList ? (
+                <div
+                  className="p-5 rounded-2xl border shadow-lg"
+                  style={{
+                    backgroundColor: "var(--surface)",
+                    borderColor: "var(--primary)",
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: "var(--primary-muted)" }}
+                    >
+                      <Plus
+                        className="w-4 h-4"
+                        style={{ color: "var(--primary)" }}
+                      />
                     </div>
-                    <span className="font-medium text-[var(--text)]">
-                      New List
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text)" }}
+                    >
+                      New list
                     </span>
                   </div>
                   <input
                     autoFocus
-                    type="text"
-                    value={newListTitle}
+                    value={newTitle}
                     onChange={(e) => {
-                      setNewListTitle(e.target.value);
-                      if (newListError) setNewListError("");
+                      setNewTitle(e.target.value);
+                      if (newTitleErr) setNewTitleErr("");
                     }}
-                    onKeyDown={handleListKeyDown}
-                    placeholder="List name..."
-                    className="input-field mb-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addList();
+                      if (e.key === "Escape") {
+                        setCreatingList(false);
+                        setNewTitle("");
+                        setNewTitleErr("");
+                      }
+                    }}
+                    placeholder="List name…"
+                    className="w-full px-3 py-2 rounded-xl text-sm outline-none mb-1"
+                    style={{
+                      backgroundColor: "var(--background)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                    }}
                   />
-                  {newListError && (
-                    <p className="mb-2 text-xs flex items-center gap-1 text-red-500">
+                  {newTitleErr && (
+                    <p className="text-xs flex items-center gap-1 text-red-400 mb-2">
                       <AlertCircle className="w-3 h-3 shrink-0" />
-                      {newListError}
+                      {newTitleErr}
                     </p>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-2">
                     <button
                       onClick={addList}
-                      disabled={!newListTitle.trim()}
-                      className="flex-1 px-3 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:bg-[var(--surface-elevated)] disabled:cursor-not-allowed rounded-lg text-xs font-medium text-[var(--text-inverse)] transition-colors"
+                      disabled={!newTitle.trim()}
+                      className="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40"
+                      style={{
+                        backgroundColor: "var(--primary)",
+                        color: "var(--text-inverse)",
+                      }}
                     >
                       Create
                     </button>
                     <button
                       onClick={() => {
-                        setIsCreatingList(false);
-                        setNewListTitle("");
-                        setNewListError("");
+                        setCreatingList(false);
+                        setNewTitle("");
+                        setNewTitleErr("");
                       }}
-                      className="px-3 py-2 bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] rounded-lg text-xs font-medium text-[var(--text)] transition-colors"
+                      className="px-3 py-2 rounded-xl text-xs transition-colors"
+                      style={{
+                        backgroundColor: "var(--surface-elevated)",
+                        color: "var(--text-muted)",
+                      }}
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
               ) : (
                 <div
-                  onClick={() => setIsCreatingList(true)}
-                  className="group p-6 rounded-2xl border border-dashed border-[var(--border)] hover:border-[var(--primary)]/30 hover:bg-[var(--surface)] cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[200px] gap-3"
+                  onClick={() => setCreatingList(true)}
+                  className="group flex flex-col items-center justify-center min-h-[180px] rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 hover:border-[var(--primary)] hover:bg-[var(--surface)]"
+                  style={{ borderColor: "var(--border)" }}
                 >
-                  <div className="w-12 h-12 rounded-xl bg-[var(--surface)] flex items-center justify-center group-hover:bg-[var(--primary-muted)] transition-colors">
-                    <Plus className="w-6 h-6 text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors" />
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 transition-colors"
+                    style={{ backgroundColor: "var(--surface-elevated)" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.parentElement.querySelector(
+                        "svg",
+                      ).style.color = "var(--primary)")
+                    }
+                  >
+                    <Plus
+                      className="w-5 h-5 transition-colors group-hover:text-[var(--primary)]"
+                      style={{ color: "var(--text-muted)" }}
+                    />
                   </div>
-                  <span className="text-sm font-medium text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                    Create New List
+                  <span
+                    className="text-xs font-medium transition-colors group-hover:text-[var(--primary)]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    New list
                   </span>
                 </div>
               )}
@@ -376,184 +726,266 @@ export default function MainView({
           )}
         </div>
 
-        <DeleteConfirmModal
-          isOpen={deleteModal.isOpen && deleteModal.type === "list"}
-          onClose={() =>
-            setDeleteModal({ isOpen: false, type: null, item: null })
-          }
-          onConfirm={executeDeleteList}
-          title="Delete List"
-          message={`Are you sure you want to delete "${deleteModal.item?.title}"? This will also delete all ${deleteModal.item?.todos?.length || 0} tasks. This action cannot be undone.`}
+        <ConfirmModal
+          isOpen={deleteModal.open}
+          onClose={() => setDeleteModal({ open: false, item: null })}
+          onConfirm={executeDelete}
+          title="Delete list?"
+          message={`"${deleteModal.item?.title}" and its ${deleteModal.item?.todos?.length || 0} task${deleteModal.item?.todos?.length !== 1 ? "s" : ""} will be permanently deleted.`}
         />
       </div>
     );
   }
 
-  // ── LIST VIEW ───────────────────────────────────────────────────────────────
+  // ── LIST VIEW ────────────────────────────────────────────────────────────────
   const todos = list.todos || [];
   const completedCount = todos.filter((t) => t.done).length;
-  const totalCount = todos.length;
-  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  const progress = todos.length ? (completedCount / todos.length) * 100 : 0;
   const overdueCount = todos.filter(
     (t) => !t.done && t.deadline && new Date(t.deadline) < new Date(),
   ).length;
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--background)]">
-      <header className="shrink-0 flex items-center justify-between px-8 py-6 border-b border-[var(--border)] bg-[var(--surface)]/50 backdrop-blur-sm">
-        <div className="flex items-center gap-4 min-w-0">
-          <button
-            onClick={onOpenSidebar}
-            className="md:hidden p-2 -ml-2 hover:bg-[var(--surface-hover)] rounded-lg transition-colors shrink-0"
-          >
-            <Menu className="w-5 h-5 text-[var(--text-muted)]" />
-          </button>
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] rounded-lg transition-all shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back</span>
-          </button>
-          <div className="h-6 w-px bg-[var(--border)] hidden sm:block shrink-0" />
+    <div
+      className="flex-1 flex flex-col h-full overflow-hidden"
+      style={{ backgroundColor: "var(--background)" }}
+    >
+      {/* Header */}
+      <header
+        className="shrink-0 px-6 sm:px-8 py-5 border-b"
+        style={{
+          borderColor: "var(--border)",
+          backgroundColor: "var(--surface)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={onOpenSidebar}
+              className="md:hidden p-2 rounded-xl hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+            >
+              <Menu
+                className="w-5 h-5"
+                style={{ color: "var(--text-muted)" }}
+              />
+            </button>
+            <button
+              onClick={onBack}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition-all hover:bg-[var(--surface-hover)] shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Lists</span>
+            </button>
+            <div
+              className="w-px h-5 shrink-0 hidden sm:block"
+              style={{ backgroundColor: "var(--border)" }}
+            />
 
-          <div className="min-w-0">
-            {isRenamingHeader ? (
-              /* Inline rename */
-              <div className="flex items-center gap-2">
+            {/* Title or rename input */}
+            {renamingHeader ? (
+              <div className="flex items-center gap-2 min-w-0">
                 <input
                   ref={headerInputRef}
                   value={headerTitle}
                   onChange={(e) => {
                     setHeaderTitle(e.target.value);
-                    if (headerRenameError) setHeaderRenameError("");
+                    if (headerRenameErr) setHeaderRenameErr("");
                   }}
-                  onKeyDown={handleHeaderRenameKeyDown}
-                  className="px-3 py-1.5 bg-[var(--background)] border border-[var(--primary)]/40 rounded-lg text-xl font-bold text-[var(--text)] focus:outline-none w-48 sm:w-64"
+                  onKeyDown={handleHeaderKey}
+                  className="px-3 py-1.5 rounded-xl text-lg font-bold outline-none min-w-0 w-48 sm:w-64"
+                  style={{
+                    backgroundColor: "var(--background)",
+                    border: "1px solid var(--primary)",
+                    color: "var(--text)",
+                  }}
                 />
                 <button
                   onClick={saveHeaderRename}
-                  className="p-1.5 rounded-lg bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 text-[var(--primary)] transition-colors"
-                  title="Save"
+                  className="p-1.5 rounded-xl transition-colors hover:bg-[var(--primary)]/10 shrink-0"
+                  style={{ color: "var(--primary)" }}
                 >
                   <Check className="w-4 h-4" />
                 </button>
                 <button
                   onClick={cancelHeaderRename}
-                  className="p-1.5 rounded-lg hover:bg-[var(--surface-hover)] text-[var(--text-muted)] transition-colors"
-                  title="Cancel"
+                  className="p-1.5 rounded-xl transition-colors hover:bg-[var(--surface-hover)] shrink-0"
+                  style={{ color: "var(--text-muted)" }}
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-bold text-[var(--text)] tracking-tight truncate">
+              <div className="flex items-center gap-2 min-w-0">
+                <h1
+                  className="text-xl font-bold truncate"
+                  style={{ color: "var(--text)" }}
+                >
                   {list.title}
-                </h2>
+                </h1>
                 <button
                   onClick={startHeaderRename}
-                  className="p-1.5 rounded-lg hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] text-[var(--text-muted)] transition-colors shrink-0"
-                  title="Rename list"
+                  className="p-1.5 rounded-xl transition-colors hover:bg-[var(--primary)]/10 shrink-0"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = "var(--primary)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "var(--text-muted)")
+                  }
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
-                {overdueCount > 0 && (
-                  <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium animate-pulse shrink-0">
-                    <AlertCircle className="w-4 h-4" />
-                    {overdueCount} overdue
-                  </span>
-                )}
               </div>
             )}
-            {headerRenameError && (
-              <p className="mt-1 text-xs flex items-center gap-1 text-red-500">
-                <AlertCircle className="w-3 h-3 shrink-0" />
-                {headerRenameError}
-              </p>
-            )}
-            <p className="text-sm text-[var(--text-muted)] mt-0.5">
-              {completedCount} of {totalCount} tasks completed
-            </p>
           </div>
-        </div>
 
-        <div className="hidden sm:flex items-center gap-3 shrink-0">
-          <div className="w-32 h-2 bg-[var(--border)] rounded-full overflow-hidden">
+          {/* Progress */}
+          <div className="hidden sm:flex items-center gap-3 shrink-0">
+            {overdueCount > 0 && (
+              <span
+                className="text-xs font-medium px-2 py-1 rounded-full"
+                style={{
+                  backgroundColor: "rgba(239,68,68,0.1)",
+                  color: "#f87171",
+                }}
+              >
+                {overdueCount} overdue
+              </span>
+            )}
             <div
-              className="h-full bg-[var(--primary)] rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            />
+              className="w-28 h-1.5 rounded-full overflow-hidden"
+              style={{ backgroundColor: "var(--border)" }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progress}%`,
+                  backgroundColor: "var(--primary)",
+                }}
+              />
+            </div>
+            <span
+              className="text-sm font-semibold tabular-nums"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {Math.round(progress)}%
+            </span>
           </div>
-          <span className="text-sm font-medium text-[var(--text-muted)]">
-            {Math.round(progress)}%
-          </span>
         </div>
+        {headerRenameErr && (
+          <p className="mt-2 text-xs flex items-center gap-1 text-red-400 pl-2">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            {headerRenameErr}
+          </p>
+        )}
+        <p
+          className="text-xs mt-1.5 pl-2 sm:pl-0"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {completedCount} of {todos.length} tasks completed
+        </p>
       </header>
 
-      {/* Add todo input */}
-      <div className="shrink-0 px-8 py-6 border-b border-[var(--border)] bg-[var(--surface)]/30">
+      {/* Add todo */}
+      <div
+        className="shrink-0 px-6 sm:px-8 py-4 border-b"
+        style={{
+          borderColor: "var(--border)",
+          backgroundColor: "var(--surface-80)",
+        }}
+      >
         <div
-          className={`flex flex-col gap-3 p-2 rounded-2xl bg-[var(--surface)] border transition-all duration-300 ${
-            isInputFocused
-              ? "border-[var(--primary)]/30 ring-4 ring-[var(--primary)]/5"
-              : "border-[var(--border)]"
+          className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+            inputFocused ? "shadow-lg" : ""
           }`}
+          style={{
+            backgroundColor: "var(--surface)",
+            borderColor: inputFocused ? "var(--primary)" : "var(--border)",
+            boxShadow: inputFocused
+              ? "0 0 0 3px var(--primary-muted)"
+              : undefined,
+          }}
         >
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            onFocus={() => setIsInputFocused(true)}
-            onBlur={() => setIsInputFocused(false)}
-            className="flex-1 px-4 py-3 bg-transparent text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none text-sm"
-            placeholder="What needs to be done?"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addTodo();
+            }}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            placeholder="Add a task…"
+            className="w-full px-4 py-3.5 bg-transparent text-sm outline-none"
+            style={{ color: "var(--text)" }}
           />
-          <div className="flex flex-col sm:flex-row gap-2 px-2 pb-2">
-            <div className="flex items-center gap-2 flex-1">
-              <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
+          <div className="flex items-center gap-2 px-3 pb-3">
+            <div
+              className="flex items-center gap-1.5 flex-1 px-2.5 py-1.5 rounded-xl text-xs"
+              style={{
+                backgroundColor: "var(--background)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <Calendar
+                className="w-3.5 h-3.5 shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              />
               <input
                 type="datetime-local"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs text-[var(--text)] focus:outline-none focus:border-[var(--primary)]/50"
+                className="flex-1 bg-transparent text-xs outline-none"
+                style={{ color: "var(--text)" }}
               />
             </div>
-            <div className="flex gap-2">
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className={`px-4 py-2 rounded-lg text-xs font-medium border focus:outline-none cursor-pointer transition-colors ${getPriorityColor(priority)}`}
-              >
-                <option value="low">Low Priority</option>
-                <option value="medium">Medium Priority</option>
-                <option value="urgent">Urgent</option>
-              </select>
-              <button
-                onClick={addTodo}
-                disabled={!text.trim()}
-                className="px-6 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:bg-[var(--surface-elevated)] disabled:cursor-not-allowed rounded-lg text-[var(--text-inverse)] font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[var(--primary)]/20"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Add</span>
-              </button>
-            </div>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border outline-none cursor-pointer ${priorityBtnClass(priority)}`}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="urgent">Urgent</option>
+            </select>
+            <button
+              onClick={addTodo}
+              disabled={!text.trim()}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 active:scale-95"
+              style={{
+                backgroundColor: "var(--primary)",
+                color: "var(--text-inverse)",
+                boxShadow: text.trim()
+                  ? "0 2px 8px var(--primary-20)"
+                  : undefined,
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Add</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Todo list */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
+      {/* Todos */}
+      <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-5 custom-scrollbar">
         {todos.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
-            <div className="w-16 h-16 mb-4 rounded-full bg-[var(--surface)] flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-[var(--text-muted)]" />
+          <div className="h-full flex flex-col items-center justify-center text-center">
+            <div
+              className="w-16 h-16 mb-4 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: "var(--surface)" }}
+            >
+              <Sparkles
+                className="w-7 h-7"
+                style={{ color: "var(--text-muted)" }}
+              />
             </div>
-            <p className="text-lg font-medium text-[var(--text)]">
+            <p className="font-semibold mb-1" style={{ color: "var(--text)" }}>
               No tasks yet
             </p>
-            <p className="text-sm mt-1">
-              Add your first task above to get started
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Type a task above and hit Enter
             </p>
           </div>
         ) : (
@@ -579,167 +1011,6 @@ export default function MainView({
             </SortableContext>
           </DndContext>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ── List Card with inline rename ─────────────────────────────────────────────
-function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [renameTitle, setRenameTitle] = useState(l.title);
-  const [renameError, setRenameError] = useState("");
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    if (isRenaming && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isRenaming]);
-
-  const startRename = (e) => {
-    e.stopPropagation();
-    setRenameTitle(l.title);
-    setRenameError("");
-    setIsRenaming(true);
-  };
-
-  const cancelRename = (e) => {
-    e?.stopPropagation();
-    setIsRenaming(false);
-    setRenameError("");
-  };
-
-  const saveRename = async (e) => {
-    e?.stopPropagation();
-    if (!renameTitle.trim()) return;
-    const result = await onUpdate({ ...l, title: renameTitle.trim() });
-    if (result?.error) {
-      setRenameError(result.error);
-    } else {
-      setIsRenaming(false);
-      setRenameError("");
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    e.stopPropagation();
-    if (e.key === "Enter") saveRename();
-    if (e.key === "Escape") cancelRename();
-  };
-
-  return (
-    <div
-      onClick={() => !isRenaming && onSelect(l.id)}
-      className="group relative p-6 rounded-2xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--primary)]/30 hover:bg-[var(--surface-hover)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
-    >
-      {/* Top-right actions */}
-      <div className="absolute top-3 right-3 flex items-center gap-1 z-10 md:opacity-0 md:group-hover:opacity-100 opacity-100">
-        <button
-          onClick={startRename}
-          className="p-1.5 rounded-lg transition-all duration-200 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]"
-          style={{ color: "var(--text-muted)" }}
-          title="Rename list"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={(e) => onDelete(l.id, e)}
-          className="p-1.5 rounded-lg transition-all duration-200 hover:bg-red-500/10 hover:text-red-500"
-          style={{ color: "var(--text-muted)" }}
-          title="Delete list"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {stats.overdue > 0 && (
-        <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
-          <AlertCircle className="w-3 h-3" />
-          {stats.overdue}
-        </div>
-      )}
-
-      <div className="w-12 h-12 mb-4 mt-2 rounded-xl bg-[var(--primary-muted)] flex items-center justify-center border border-[var(--primary)]/20 group-hover:scale-110 transition-transform duration-300">
-        <ListTodo className="w-6 h-6 text-[var(--primary)]" />
-      </div>
-
-      {isRenaming ? (
-        <div className="mb-3" onClick={(e) => e.stopPropagation()}>
-          <input
-            ref={inputRef}
-            value={renameTitle}
-            onChange={(e) => {
-              setRenameTitle(e.target.value);
-              if (renameError) setRenameError("");
-            }}
-            onKeyDown={handleKeyDown}
-            className="w-full px-2 py-1.5 mb-1 bg-[var(--background)] border border-[var(--primary)]/40 rounded-lg text-sm font-semibold text-[var(--text)] focus:outline-none"
-          />
-          {renameError && (
-            <p className="mb-1 text-xs flex items-center gap-1 text-red-500">
-              <AlertCircle className="w-3 h-3 shrink-0" />
-              {renameError}
-            </p>
-          )}
-          <div className="flex gap-2">
-            <button
-              onClick={saveRename}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--text-inverse)] rounded-lg text-xs font-medium transition-colors"
-            >
-              <Check className="w-3 h-3" /> Save
-            </button>
-            <button
-              onClick={cancelRename}
-              className="px-2 py-1 bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] text-[var(--text)] rounded-lg text-xs transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <h3 className="font-semibold text-lg text-[var(--text)] mb-1 truncate pr-16">
-            {l.title}
-          </h3>
-          <p className="text-xs text-[var(--text-muted)] mb-4">
-            Created{" "}
-            {new Date(l.createdAt).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </p>
-        </>
-      )}
-
-      <div className="mb-3">
-        <div className="flex justify-between text-xs mb-1.5">
-          <span className="text-[var(--text-muted)]">
-            {stats.completed}/{stats.total} done
-          </span>
-          <span className="text-[var(--text-muted)]">
-            {Math.round(stats.progress)}%
-          </span>
-        </div>
-        <div className="h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[var(--primary)] rounded-full transition-all duration-500"
-            style={{ width: `${stats.progress}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
-        <span className="flex items-center gap-1">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-          {stats.completed}
-        </span>
-        <span className="flex items-center gap-1">
-          <Circle className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-          {stats.total - stats.completed}
-        </span>
       </div>
     </div>
   );

@@ -5,38 +5,44 @@
 @layer base {
   :root {
     /* Light mode colors */
-    --background: #ffffff;
-    --surface: #f8fafc;
-    --surface-80: color-mix(in srgb, #f8fafc 80%, transparent);
+    --background: #f9fafb;
+    --surface: #ffffff;
+    --surface-80: color-mix(in srgb, #ffffff 80%, transparent);
     --surface-elevated: #ffffff;
-    --surface-hover: #f1f5f9;
-    --primary: #3b82f6;
-    --primary-hover: #2563eb;
-    --primary-muted: rgba(59, 130, 246, 0.1);
-    --primary-20: rgba(59, 130, 246, 0.2);
-    --text: #0f172a;
-    --text-muted: #64748b;
+    --surface-hover: #f3f4f6;
+
+    --primary: #10b981; /* Green */
+    --primary-hover: #059669;
+    --primary-muted: rgba(16, 185, 129, 0.12);
+    --primary-20: rgba(16, 185, 129, 0.2);
+
+    --text: #111827;
+    --text-muted: #6b7280;
     --text-inverse: #ffffff;
-    --border: rgba(148, 163, 184, 0.2);
-    --shadow: rgba(0, 0, 0, 0.1);
+
+    --border: rgba(17, 24, 39, 0.08);
+    --shadow: rgba(0, 0, 0, 0.08);
   }
 
   .dark {
     /* Dark mode colors */
     --background: #020617;
-    --surface: #0f172a;
-    --surface-80: rgba(15, 23, 42, 0.8);
-    --surface-elevated: #1e293b;
-    --surface-hover: rgba(255, 255, 255, 0.05);
-    --primary: #3b82f6;
-    --primary-hover: #60a5fa;
-    --primary-muted: rgba(59, 130, 246, 0.2);
-    --primary-20: rgba(59, 130, 246, 0.2);
-    --text: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-inverse: #0f172a;
-    --border: rgba(255, 255, 255, 0.1);
-    --shadow: rgba(0, 0, 0, 0.3);
+    --surface: #0b1220;
+    --surface-80: rgba(11, 18, 32, 0.8);
+    --surface-elevated: #111827;
+    --surface-hover: rgba(255, 255, 255, 0.06);
+
+    --primary: #34d399; /* Lighter green for dark mode */
+    --primary-hover: #6ee7b7;
+    --primary-muted: rgba(52, 211, 153, 0.18);
+    --primary-20: rgba(52, 211, 153, 0.25);
+
+    --text: #f9fafb;
+    --text-muted: #9ca3af;
+    --text-inverse: #020617;
+
+    --border: rgba(255, 255, 255, 0.08);
+    --shadow: rgba(0, 0, 0, 0.4);
   }
 
   * {

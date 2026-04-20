@@ -14,20 +14,33 @@ import {
   Calendar,
 } from "lucide-react";
 
+const PRIORITY = {
+  urgent: {
+    label: "Urgent",
+    style: "bg-red-500/10 text-red-400 border-red-500/20",
+  },
+  medium: {
+    label: "Medium",
+    style: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  },
+  low: {
+    label: "Low",
+    style: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  },
+};
+
 export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
   const [isOverdue, setIsOverdue] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Edit state
+  const [showDelete, setShowDelete] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
   const [editPriority, setEditPriority] = useState(todo.priority || "medium");
   const [editDeadline, setEditDeadline] = useState(
     todo.deadline ? new Date(todo.deadline).toISOString().slice(0, 16) : "",
   );
-  const editInputRef = useRef(null);
+  const textRef = useRef(null);
 
   const {
     attributes,
@@ -45,9 +58,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
   };
 
   useEffect(() => {
-    if (isEditing && editInputRef.current) {
-      editInputRef.current.focus();
-    }
+    if (isEditing) textRef.current?.focus();
   }, [isEditing]);
 
   useEffect(() => {
@@ -56,40 +67,27 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
       setIsOverdue(false);
       return;
     }
-
-    const calculateTimeLeft = () => {
-      const now = new Date().getTime();
-      const deadline = new Date(todo.deadline).getTime();
-      const difference = deadline - now;
-
-      if (difference <= 0) {
+    const calc = () => {
+      const diff = new Date(todo.deadline).getTime() - Date.now();
+      if (diff <= 0) {
         setIsOverdue(true);
         setTimeLeft("Overdue");
         return;
       }
-
       setIsOverdue(false);
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-      const hours = Math.floor(
-        (difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      setTimeLeft(
+        d > 0 ? `${d}d ${h}h left` : h > 0 ? `${h}h ${m}m left` : `${m}m left`,
       );
-      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-
-      if (days > 0) setTimeLeft(`${days}d ${hours}h left`);
-      else if (hours > 0) setTimeLeft(`${hours}h ${minutes}m left`);
-      else setTimeLeft(`${minutes}m left`);
     };
-
-    calculateTimeLeft();
-    const timer = setInterval(calculateTimeLeft, 60000);
-    return () => clearInterval(timer);
+    calc();
+    const t = setInterval(calc, 60000);
+    return () => clearInterval(t);
   }, [todo.deadline, todo.done]);
 
-  const toggleTodo = async () => {
-    await onUpdate(listId, todo.id, { done: !todo.done });
-  };
-
-  const startEdit = (e) => {
+  const openEdit = (e) => {
     e.stopPropagation();
     setEditText(todo.text);
     setEditPriority(todo.priority || "medium");
@@ -99,14 +97,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     setIsEditing(true);
   };
 
-  const cancelEdit = () => {
-    setIsEditing(false);
-    setEditText(todo.text);
-    setEditPriority(todo.priority || "medium");
-    setEditDeadline(
-      todo.deadline ? new Date(todo.deadline).toISOString().slice(0, 16) : "",
-    );
-  };
+  const cancelEdit = () => setIsEditing(false);
 
   const saveEdit = async () => {
     if (!editText.trim()) return;
@@ -118,56 +109,25 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     setIsEditing(false);
   };
 
-  const handleEditKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) saveEdit();
-    if (e.key === "Escape") cancelEdit();
-  };
+  const fmtDate = (s) =>
+    s
+      ? new Date(s).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
+  const fmtDeadline = (s) =>
+    s
+      ? new Date(s).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
 
-  const confirmDelete = async () => {
-    await onDelete(listId, todo.id);
-    setShowDeleteConfirm(false);
-  };
-
-  const getPriorityStyles = (p) => {
-    switch (p) {
-      case "urgent":
-        return "bg-red-500/10 text-red-500 border-red-500/20";
-      case "medium":
-        return "bg-amber-500/10 text-amber-500 border-amber-500/20";
-      default:
-        return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
-    }
-  };
-
-  const getPriorityLabel = (p) => {
-    switch (p) {
-      case "urgent":
-        return "High";
-      case "medium":
-        return "Med";
-      default:
-        return "Low";
-    }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatCreatedAt = (dateString) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const p = PRIORITY[todo.priority] || PRIORITY.low;
 
   // ── EDIT MODE ──────────────────────────────────────────────────────────────
   if (isEditing) {
@@ -175,40 +135,68 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
       <div
         ref={setNodeRef}
         style={style}
-        className="rounded-xl border border-[var(--primary)]/30 bg-[var(--surface)] ring-4 ring-[var(--primary)]/5 p-4 space-y-3"
+        className="rounded-2xl border p-4 space-y-3 shadow-lg"
+        style={{
+          backgroundColor: "var(--surface)",
+          borderColor: "var(--primary)",
+          boxShadow: "0 0 0 3px var(--primary-muted)",
+        }}
       >
-        <input
-          ref={editInputRef}
+        <textarea
+          ref={textRef}
           value={editText}
           onChange={(e) => setEditText(e.target.value)}
-          onKeyDown={handleEditKeyDown}
-          className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] focus:outline-none focus:border-[var(--primary)]/50"
-          placeholder="Task text..."
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              saveEdit();
+            }
+            if (e.key === "Escape") cancelEdit();
+          }}
+          rows={2}
+          className="w-full px-3 py-2 rounded-xl text-sm resize-none outline-none transition-colors"
+          style={{
+            backgroundColor: "var(--background)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+          }}
+          placeholder="Task description…"
         />
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex items-center gap-2 flex-1">
-            <Calendar className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
+          <div
+            className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl"
+            style={{
+              backgroundColor: "var(--background)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Calendar
+              className="w-3.5 h-3.5 shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
             <input
               type="datetime-local"
               value={editDeadline}
               onChange={(e) => setEditDeadline(e.target.value)}
-              className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs text-[var(--text)] focus:outline-none focus:border-[var(--primary)]/50"
+              className="flex-1 text-xs outline-none bg-transparent"
+              style={{ color: "var(--text)" }}
             />
           </div>
           <select
             value={editPriority}
             onChange={(e) => setEditPriority(e.target.value)}
-            className={`px-3 py-2 rounded-lg text-xs font-medium border focus:outline-none cursor-pointer ${getPriorityStyles(editPriority)}`}
+            className={`px-3 py-2 rounded-xl text-xs font-medium border outline-none cursor-pointer ${PRIORITY[editPriority]?.style}`}
           >
-            <option value="low">Low Priority</option>
-            <option value="medium">Medium Priority</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
             <option value="urgent">Urgent</option>
           </select>
         </div>
         <div className="flex gap-2 justify-end">
           <button
             onClick={cancelEdit}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] text-[var(--text)] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors hover:bg-[var(--surface-hover)]"
+            style={{ color: "var(--text-muted)" }}
           >
             <X className="w-3.5 h-3.5" />
             Cancel
@@ -216,7 +204,11 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
           <button
             onClick={saveEdit}
             disabled={!editText.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-inverse)] transition-colors"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40"
+            style={{
+              backgroundColor: "var(--primary)",
+              color: "var(--text-inverse)",
+            }}
           >
             <Save className="w-3.5 h-3.5" />
             Save
@@ -234,155 +226,233 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
         style={style}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`group relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-300 ${
+        className={`group flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-200 ${
           isDragging
-            ? "opacity-50 scale-105 shadow-2xl bg-[var(--surface-elevated)] border-[var(--primary)]/30"
+            ? "opacity-50 scale-[1.02] shadow-2xl"
             : isOverdue && !todo.done
-              ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50"
-              : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--primary)]/20 hover:bg-[var(--surface-hover)]"
+              ? "border-red-500/30 bg-red-500/5"
+              : todo.done
+                ? "opacity-60"
+                : ""
         }`}
+        style={
+          !isDragging
+            ? {
+                backgroundColor: "var(--surface)",
+                borderColor:
+                  isOverdue && !todo.done ? undefined : "var(--border)",
+              }
+            : {}
+        }
       >
-        {/* Drag Handle */}
+        {/* Drag handle */}
         <div
           {...attributes}
           {...listeners}
-          className={`hidden sm:flex cursor-grab active:cursor-grabbing p-1 rounded hover:bg-[var(--surface-hover)] transition-colors ${
+          className={`hidden sm:flex cursor-grab active:cursor-grabbing p-1 rounded-lg transition-all ${
             isHovered || isDragging ? "opacity-100" : "opacity-0"
           }`}
         >
-          <GripVertical className="w-4 h-4 text-[var(--text-muted)]" />
+          <GripVertical
+            className="w-4 h-4"
+            style={{ color: "var(--text-muted)" }}
+          />
         </div>
 
         {/* Checkbox */}
         <button
-          onClick={toggleTodo}
-          className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${
+          onClick={() => onUpdate(listId, todo.id, { done: !todo.done })}
+          className={`flex-shrink-0 w-5 h-5 rounded-full border-2 transition-all duration-300 flex items-center justify-center ${
             todo.done
-              ? "bg-[var(--primary)] border-[var(--primary)]"
+              ? "border-[var(--primary)] bg-[var(--primary)]"
               : isOverdue
-                ? "border-red-500 hover:border-red-400"
-                : "border-[var(--text-muted)] hover:border-[var(--primary)]/50"
+                ? "border-red-400"
+                : "border-[var(--text-muted)] hover:border-[var(--primary)]"
           }`}
         >
           {todo.done && (
-            <Check className="w-3.5 h-3.5 text-[var(--text-inverse)]" />
+            <Check
+              className="w-3 h-3"
+              style={{ color: "var(--text-inverse)" }}
+            />
           )}
         </button>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <span
-              className={`text-sm transition-all duration-300 truncate ${
-                todo.done
-                  ? "text-[var(--text-muted)] line-through"
-                  : isOverdue
-                    ? "text-red-500"
-                    : "text-[var(--text)]"
-              }`}
-            >
-              {todo.text}
-            </span>
+          <p
+            className={`text-sm font-medium truncate transition-all duration-200 ${
+              todo.done ? "line-through" : ""
+            }`}
+            style={{
+              color: todo.done
+                ? "var(--text-muted)"
+                : isOverdue
+                  ? "#f87171"
+                  : "var(--text)",
+            }}
+          >
+            {todo.text}
+          </p>
+
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+            {/* Created date — always shown */}
+            {todo.createdAt && (
+              <span
+                className="text-[11px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {fmtDate(todo.createdAt)}
+              </span>
+            )}
+            {/* Deadline */}
+            {todo.deadline && (
+              <span
+                className={`flex items-center gap-1 text-[11px] ${isOverdue && !todo.done ? "text-red-400" : ""}`}
+                style={
+                  !isOverdue || todo.done ? { color: "var(--text-muted)" } : {}
+                }
+              >
+                <Clock className="w-3 h-3" />
+                Due {fmtDeadline(todo.deadline)}
+              </span>
+            )}
+            {/* Countdown */}
+            {todo.deadline && !todo.done && timeLeft && (
+              <span
+                className={`flex items-center gap-1 text-[11px] font-medium ${isOverdue ? "text-red-400" : "text-amber-400"}`}
+              >
+                <Hourglass className="w-3 h-3" />
+                {timeLeft}
+              </span>
+            )}
+            {/* Overdue badge */}
             {isOverdue && !todo.done && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-xs font-medium border border-red-500/20 animate-pulse">
+              <span
+                className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: "rgba(239,68,68,0.15)",
+                  color: "#f87171",
+                }}
+              >
                 <AlertCircle className="w-3 h-3" />
                 OVERDUE
               </span>
             )}
           </div>
-
-          {/* Dates row */}
-          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            {/* Always show created date */}
-            {todo.createdAt && (
-              <span className="text-xs text-[var(--text-muted)]">
-                Created {formatCreatedAt(todo.createdAt)}
-              </span>
-            )}
-            {/* Deadline if set */}
-            {todo.deadline && (
-              <div
-                className={`flex items-center gap-1.5 text-xs ${
-                  isOverdue && !todo.done
-                    ? "text-red-500"
-                    : "text-[var(--text-muted)]"
-                }`}
-              >
-                <Clock className="w-3 h-3" />
-                <span>Due {formatDate(todo.deadline)}</span>
-              </div>
-            )}
-            {/* Time remaining */}
-            {todo.deadline && !todo.done && timeLeft && (
-              <div
-                className={`flex items-center gap-1 text-xs font-medium ${
-                  isOverdue ? "text-red-500" : "text-amber-500"
-                }`}
-              >
-                <Hourglass className="w-3 h-3" />
-                <span>{timeLeft}</span>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Priority Badge */}
+        {/* Priority badge */}
         <span
-          className={`px-2.5 py-1 rounded-lg text-xs font-medium border shrink-0 ${getPriorityStyles(todo.priority)}`}
+          className={`text-[11px] font-semibold px-2 py-1 rounded-lg border shrink-0 ${p.style}`}
         >
-          {getPriorityLabel(todo.priority)}
+          {p.label}
         </span>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity">
+        {/* Actions */}
+        <div
+          className={`flex items-center gap-0.5 shrink-0 transition-opacity duration-150 ${
+            isHovered ? "opacity-100" : "opacity-0 md:opacity-0"
+          } opacity-100 md:opacity-0 group-hover:opacity-100`}
+        >
           <button
-            onClick={startEdit}
-            className="p-2 rounded-lg transition-all duration-200 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]"
+            onClick={openEdit}
+            className="p-1.5 rounded-xl transition-colors hover:bg-[var(--primary)]/10"
             style={{ color: "var(--text-muted)" }}
-            title="Edit task"
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = "var(--primary)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--text-muted)")
+            }
+            title="Edit"
           >
-            <Pencil className="w-4 h-4" />
+            <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setShowDeleteConfirm(true);
+              setShowDelete(true);
             }}
-            className="p-2 rounded-lg transition-all duration-200 hover:bg-red-500/10 hover:text-red-500"
+            className="p-1.5 rounded-xl transition-colors hover:bg-red-500/10"
             style={{ color: "var(--text-muted)" }}
-            title="Delete task"
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--text-muted)")
+            }
+            title="Delete"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl mx-4">
-            <div className="flex items-center gap-3 mb-4 text-red-500">
-              <div className="p-2 bg-red-500/10 rounded-full">
-                <AlertCircle className="w-6 h-6" />
+      {/* Delete confirm */}
+      {showDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{
+            backgroundColor: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            className="rounded-2xl border p-6 max-w-sm w-full shadow-2xl mx-4"
+            style={{
+              backgroundColor: "var(--surface)",
+              borderColor: "var(--border)",
+            }}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className="p-2 rounded-xl"
+                style={{ backgroundColor: "rgba(239,68,68,0.1)" }}
+              >
+                <Trash2 className="w-5 h-5 text-red-400" />
               </div>
-              <h3 className="text-lg font-semibold text-[var(--text)]">
-                Delete Task
+              <h3 className="font-semibold" style={{ color: "var(--text)" }}>
+                Delete task?
               </h3>
             </div>
-            <p className="text-sm text-[var(--text-muted)] mb-6">
-              Are you sure you want to delete "{todo.text}"? This action cannot
-              be undone.
+            <p
+              className="text-sm mb-5 leading-relaxed"
+              style={{ color: "var(--text-muted)" }}
+            >
+              "<span style={{ color: "var(--text)" }}>{todo.text}</span>" will
+              be permanently removed.
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 px-4 py-2 bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] text-[var(--text)] rounded-lg text-sm font-medium transition-colors"
+                onClick={() => setShowDelete(false)}
+                className="flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+                style={{
+                  backgroundColor: "var(--surface-elevated)",
+                  color: "var(--text)",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor =
+                    "var(--surface-hover)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor =
+                    "var(--surface-elevated)")
+                }
               >
                 Cancel
               </button>
               <button
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+                onClick={async () => {
+                  await onDelete(listId, todo.id);
+                  setShowDelete(false);
+                }}
+                className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors"
+                style={{ backgroundColor: "#ef4444" }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#dc2626")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#ef4444")
+                }
               >
                 Delete
               </button>

@@ -3,13 +3,17 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AdSenseProvider } from "./context/AdsenseContext";
 import { useData } from "./hooks/useData";
+import {
+  useNotifications,
+  NotificationContainer,
+} from "./components/useNotifications";
 import MainView from "./components/MainView";
 import Sidebar from "./components/SideBar";
 import Footer from "./components/Footer";
 import LoginScreen from "./components/LoginScreen";
 import UserMenu from "./components/UserMenu";
 import ThemeToggle from "./components/ThemeToggle";
-import { Wifi, WifiOff, RefreshCw, Loader2 } from "lucide-react";
+import { WifiOff, RefreshCw, Loader2 } from "lucide-react";
 
 const ADSENSE_ID = import.meta.env.VITE_ADSENSE_ID || "ca-pub-7316645635680327";
 
@@ -17,6 +21,7 @@ function AppContent() {
   const { user, loading: authLoading, authChecked } = useAuth();
   const [activeListId, setActiveListId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { notifications, dismiss, success, error, info } = useNotifications();
 
   const {
     lists,
@@ -39,50 +44,95 @@ function AppContent() {
     );
   }
 
-  if (!user) {
-    return <LoginScreen />;
-  }
+  if (!user) return <LoginScreen />;
 
   const activeList = lists.find((l) => l.id === activeListId);
 
-  // Only show the sync badge when there's something worth showing
+  // ── Wrapped handlers that fire notifications ───────────────────────────────
+
+  const handleCreateList = async (data) => {
+    const result = await saveList(data);
+    if (result?.error) {
+      error(result.error);
+    } else {
+      success(`"${data.title}" created`);
+    }
+    return result;
+  };
+
+  const handleUpdateList = async (data) => {
+    const result = await saveList(data);
+    if (result?.error) {
+      error(result.error);
+    } else {
+      success("List renamed");
+    }
+    return result;
+  };
+
+  const handleDeleteList = async (listId) => {
+    const list = lists.find((l) => l.id === listId);
+    await deleteList(listId);
+    if (activeListId === listId) setActiveListId(null);
+    info(`"${list?.title ?? "List"}" deleted`);
+  };
+
+  const handleCreateTodo = async (listId, todoData) => {
+    await saveTodo(listId, todoData);
+    success("Task added");
+  };
+
+  const handleUpdateTodo = async (listId, todoId, updates) => {
+    await updateTodo(listId, todoId, updates);
+    if ("done" in updates) {
+      updates.done ? success("Task completed! 🎉") : info("Task reopened");
+    } else {
+      success("Task updated");
+    }
+  };
+
+  const handleDeleteTodo = async (listId, todoId) => {
+    await deleteTodo(listId, todoId);
+    info("Task deleted");
+  };
+
   const showSyncBadge =
     !isOnline || syncStatus === "syncing" || syncStatus === "error";
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--text)]">
-      {/* Sync Status — only visible when offline, syncing, or errored */}
+      {/* Sync badge — only shown when meaningful */}
       {showSyncBadge && (
         <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 shadow-lg ${
             syncStatus === "error"
-              ? "bg-red-500/20 text-red-500"
+              ? "bg-red-500/20 text-red-400 border border-red-500/30"
               : !isOnline
-                ? "bg-amber-500/20 text-amber-500"
-                : "bg-blue-500/20 text-blue-500"
+                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
           }`}
         >
           {!isOnline ? (
             <>
               <WifiOff className="w-3.5 h-3.5" />
-              <span>Offline</span>
+              <span>Offline — changes saved locally</span>
             </>
           ) : syncStatus === "syncing" ? (
             <>
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Syncing...</span>
+              <span>Syncing…</span>
             </>
           ) : (
             <>
-              <Wifi className="w-3.5 h-3.5" />
+              <WifiOff className="w-3.5 h-3.5" />
               <span>Sync error</span>
             </>
           )}
         </div>
       )}
 
-      {/* Top Right Controls */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
+      {/* Top-right controls */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <ThemeToggle />
         <UserMenu />
       </div>
@@ -91,8 +141,9 @@ function AppContent() {
         lists={lists}
         activeListId={activeListId}
         onSelectList={setActiveListId}
-        onCreateList={saveList}
-        onDeleteList={deleteList}
+        onCreateList={handleCreateList}
+        onUpdateList={handleUpdateList}
+        onDeleteList={handleDeleteList}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
         user={user}
@@ -105,17 +156,23 @@ function AppContent() {
           activeListId={activeListId}
           onBack={() => setActiveListId(null)}
           onSelectList={setActiveListId}
-          onCreateList={saveList}
-          onDeleteList={deleteList}
-          onCreateTodo={saveTodo}
-          onUpdateTodo={updateTodo}
-          onDeleteTodo={deleteTodo}
+          onCreateList={handleCreateList}
+          onUpdateList={handleUpdateList}
+          onDeleteList={handleDeleteList}
+          onCreateTodo={handleCreateTodo}
+          onUpdateTodo={handleUpdateTodo}
+          onDeleteTodo={handleDeleteTodo}
           onReorderTodos={reorderTodos}
           onOpenSidebar={() => setIsSidebarOpen(true)}
           isLoading={dataLoading}
         />
         <Footer />
       </div>
+
+      <NotificationContainer
+        notifications={notifications}
+        onDismiss={dismiss}
+      />
     </div>
   );
 }
