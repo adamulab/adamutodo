@@ -7,13 +7,16 @@ import {
   useNotifications,
   NotificationContainer,
 } from "./components/useNotifications";
+import { useSearch } from "./hooks/useSearch";
 import MainView from "./components/MainView";
 import Sidebar from "./components/SideBar";
+import SearchOverlay from "./components/SearchOverlay";
 import Footer from "./components/Footer";
 import LoginScreen from "./components/LoginScreen";
 import UserMenu from "./components/UserMenu";
 import ThemeToggle from "./components/ThemeToggle";
 import { WifiOff, RefreshCw, Loader2 } from "lucide-react";
+import { useDeadlineNotifier } from "./hooks/useDedlineNotifier";
 
 const ADSENSE_ID = import.meta.env.VITE_ADSENSE_ID || "ca-pub-7316645635680327";
 
@@ -21,7 +24,10 @@ function AppContent() {
   const { user, loading: authLoading, authChecked } = useAuth();
   const [activeListId, setActiveListId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { notifications, dismiss, success, error, info } = useNotifications();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const { notifications, dismiss, success, error, info, warning } =
+    useNotifications();
 
   const {
     lists,
@@ -36,6 +42,11 @@ function AppContent() {
     reorderTodos,
   } = useData(user?.uid);
 
+  useDeadlineNotifier(lists, warning);
+
+  const { searchQuery, setSearchQuery, searchResults, clearSearch } =
+    useSearch(lists);
+
   if (!authChecked || authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--background)]">
@@ -48,25 +59,17 @@ function AppContent() {
 
   const activeList = lists.find((l) => l.id === activeListId);
 
-  // ── Wrapped handlers that fire notifications ───────────────────────────────
-
   const handleCreateList = async (data) => {
     const result = await saveList(data);
-    if (result?.error) {
-      error(result.error);
-    } else {
-      success(`"${data.title}" created`);
-    }
+    if (result?.error) error(result.error);
+    else success(`"${data.title}" created`);
     return result;
   };
 
   const handleUpdateList = async (data) => {
     const result = await saveList(data);
-    if (result?.error) {
-      error(result.error);
-    } else {
-      success("List renamed");
-    }
+    if (result?.error) error(result.error);
+    else success("List renamed");
     return result;
   };
 
@@ -85,7 +88,18 @@ function AppContent() {
   const handleUpdateTodo = async (listId, todoId, updates) => {
     await updateTodo(listId, todoId, updates);
     if ("done" in updates) {
-      updates.done ? success("Task completed! 🎉") : info("Task reopened");
+      if (updates.done) {
+        const list = lists.find((l) => l.id === listId);
+        const todo = list?.todos?.find((t) => t.id === todoId);
+        const hasRecurrence = todo?.recurrence && todo.recurrence !== "none";
+        success(
+          hasRecurrence
+            ? `✅ Done! Next ${todo.recurrence} task created`
+            : "Task completed! 🎉",
+        );
+      } else {
+        info("Task reopened");
+      }
     } else {
       success("Task updated");
     }
@@ -96,20 +110,34 @@ function AppContent() {
     info("Task deleted");
   };
 
+  const handleSelectList = (listId) => {
+    setActiveListId(listId);
+    setIsSearchOpen(false);
+    clearSearch();
+  };
+
   const showSyncBadge =
     !isOnline || syncStatus === "syncing" || syncStatus === "error";
 
+  // These are passed into MainView so they render inside the header flow
+  const headerControls = (
+    <div className="flex items-center gap-2 shrink-0">
+      <ThemeToggle />
+      <UserMenu />
+    </div>
+  );
+
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--text)]">
-      {/* Sync badge — only shown when meaningful */}
+      {/* Sync badge — centered top, only when needed */}
       {showSyncBadge && (
         <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 shadow-lg ${
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg border pointer-events-none ${
             syncStatus === "error"
-              ? "bg-red-500/20 text-red-400 border border-red-500/30"
+              ? "bg-red-500/20 text-red-400 border-red-500/30"
               : !isOnline
-                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                : "bg-blue-500/20 text-blue-400 border-blue-500/30"
           }`}
         >
           {!isOnline ? (
@@ -131,16 +159,10 @@ function AppContent() {
         </div>
       )}
 
-      {/* Top-right controls */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
-        <ThemeToggle />
-        <UserMenu />
-      </div>
-
       <Sidebar
         lists={lists}
         activeListId={activeListId}
-        onSelectList={setActiveListId}
+        onSelectList={handleSelectList}
         onCreateList={handleCreateList}
         onUpdateList={handleUpdateList}
         onDeleteList={handleDeleteList}
@@ -155,7 +177,7 @@ function AppContent() {
           lists={lists}
           activeListId={activeListId}
           onBack={() => setActiveListId(null)}
-          onSelectList={setActiveListId}
+          onSelectList={handleSelectList}
           onCreateList={handleCreateList}
           onUpdateList={handleUpdateList}
           onDeleteList={handleDeleteList}
@@ -164,10 +186,24 @@ function AppContent() {
           onDeleteTodo={handleDeleteTodo}
           onReorderTodos={reorderTodos}
           onOpenSidebar={() => setIsSidebarOpen(true)}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          headerControls={headerControls}
           isLoading={dataLoading}
         />
         <Footer />
       </div>
+
+      <SearchOverlay
+        isOpen={isSearchOpen}
+        onClose={() => {
+          setIsSearchOpen(false);
+          clearSearch();
+        }}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        searchResults={searchResults}
+        onSelectList={handleSelectList}
+      />
 
       <NotificationContainer
         notifications={notifications}

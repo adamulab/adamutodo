@@ -12,6 +12,7 @@ import {
   X,
   Save,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 
 const PRIORITY = {
@@ -29,6 +30,13 @@ const PRIORITY = {
   },
 };
 
+const RECURRENCE_LABELS = {
+  none: "No repeat",
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+};
+
 export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
@@ -40,6 +48,9 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
   const [editDeadline, setEditDeadline] = useState(
     todo.deadline ? new Date(todo.deadline).toISOString().slice(0, 16) : "",
   );
+  const [editRecurrence, setEditRecurrence] = useState(
+    todo.recurrence || "none",
+  );
   const textRef = useRef(null);
 
   const {
@@ -50,7 +61,6 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     transition,
     isDragging,
   } = useSortable({ id: todo.id });
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -94,6 +104,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     setEditDeadline(
       todo.deadline ? new Date(todo.deadline).toISOString().slice(0, 16) : "",
     );
+    setEditRecurrence(todo.recurrence || "none");
     setIsEditing(true);
   };
 
@@ -105,6 +116,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
       text: editText.trim(),
       priority: editPriority,
       deadline: editDeadline || null,
+      recurrence: editRecurrence,
     });
     setIsEditing(false);
   };
@@ -128,19 +140,20 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
       : null;
 
   const p = PRIORITY[todo.priority] || PRIORITY.low;
+  const hasRecurrence = todo.recurrence && todo.recurrence !== "none";
 
-  // ── EDIT MODE ──────────────────────────────────────────────────────────────
+  // ── EDIT MODE ─────────────────────────────────────────────────────────────
   if (isEditing) {
     return (
       <div
         ref={setNodeRef}
-        style={style}
-        className="rounded-2xl border p-4 space-y-3 shadow-lg"
         style={{
+          ...style,
           backgroundColor: "var(--surface)",
-          borderColor: "var(--primary)",
+          border: "1px solid var(--primary)",
           boxShadow: "0 0 0 3px var(--primary-muted)",
         }}
+        className="rounded-2xl p-4 space-y-3 shadow-lg"
       >
         <textarea
           ref={textRef}
@@ -154,7 +167,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
             if (e.key === "Escape") cancelEdit();
           }}
           rows={2}
-          className="w-full px-3 py-2 rounded-xl text-sm resize-none outline-none transition-colors"
+          className="w-full px-3 py-2 rounded-xl text-sm resize-none outline-none"
           style={{
             backgroundColor: "var(--background)",
             border: "1px solid var(--border)",
@@ -162,40 +175,61 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
           }}
           placeholder="Task description…"
         />
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div
-            className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl"
-            style={{
-              backgroundColor: "var(--background)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <Calendar
-              className="w-3.5 h-3.5 shrink-0"
-              style={{ color: "var(--text-muted)" }}
-            />
-            <input
-              type="datetime-local"
-              value={editDeadline}
-              onChange={(e) => setEditDeadline(e.target.value)}
-              className="flex-1 text-xs outline-none bg-transparent"
-              style={{ color: "var(--text)" }}
-            />
-          </div>
+
+        {/* Deadline */}
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-xl"
+          style={{
+            backgroundColor: "var(--background)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <Calendar
+            className="w-3.5 h-3.5 shrink-0"
+            style={{ color: "var(--text-muted)" }}
+          />
+          <input
+            type="datetime-local"
+            value={editDeadline}
+            onChange={(e) => setEditDeadline(e.target.value)}
+            className="flex-1 text-xs outline-none bg-transparent"
+            style={{ color: "var(--text)" }}
+          />
+        </div>
+
+        {/* Priority + Recurrence */}
+        <div className="flex gap-2 flex-wrap">
           <select
             value={editPriority}
             onChange={(e) => setEditPriority(e.target.value)}
-            className={`px-3 py-2 rounded-xl text-xs font-medium border outline-none cursor-pointer ${PRIORITY[editPriority]?.style}`}
+            className={`flex-1 px-3 py-2 rounded-xl text-xs font-medium border outline-none cursor-pointer ${PRIORITY[editPriority]?.style}`}
           >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
+            <option value="low">Low priority</option>
+            <option value="medium">Medium priority</option>
             <option value="urgent">Urgent</option>
           </select>
+
+          <select
+            value={editRecurrence}
+            onChange={(e) => setEditRecurrence(e.target.value)}
+            className="flex-1 px-3 py-2 rounded-xl text-xs font-medium border outline-none cursor-pointer"
+            style={{
+              backgroundColor: "var(--surface-elevated)",
+              borderColor: "var(--border)",
+              color: "var(--text)",
+            }}
+          >
+            <option value="none">No repeat</option>
+            <option value="daily">Repeat daily</option>
+            <option value="weekly">Repeat weekly</option>
+            <option value="monthly">Repeat monthly</option>
+          </select>
         </div>
+
         <div className="flex gap-2 justify-end">
           <button
             onClick={cancelEdit}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors hover:bg-[var(--surface-hover)]"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium hover:bg-[var(--surface-hover)] transition-colors"
             style={{ color: "var(--text-muted)" }}
           >
             <X className="w-3.5 h-3.5" />
@@ -218,7 +252,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     );
   }
 
-  // ── VIEW MODE ──────────────────────────────────────────────────────────────
+  // ── VIEW MODE ─────────────────────────────────────────────────────────────
   return (
     <>
       <div
@@ -249,9 +283,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
         <div
           {...attributes}
           {...listeners}
-          className={`hidden sm:flex cursor-grab active:cursor-grabbing p-1 rounded-lg transition-all ${
-            isHovered || isDragging ? "opacity-100" : "opacity-0"
-          }`}
+          className={`hidden sm:flex cursor-grab active:cursor-grabbing p-1 rounded-lg transition-all ${isHovered || isDragging ? "opacity-100" : "opacity-0"}`}
         >
           <GripVertical
             className="w-4 h-4"
@@ -280,23 +312,36 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <p
-            className={`text-sm font-medium truncate transition-all duration-200 ${
-              todo.done ? "line-through" : ""
-            }`}
-            style={{
-              color: todo.done
-                ? "var(--text-muted)"
-                : isOverdue
-                  ? "#f87171"
-                  : "var(--text)",
-            }}
-          >
-            {todo.text}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p
+              className={`text-sm font-medium truncate transition-all duration-200 ${todo.done ? "line-through" : ""}`}
+              style={{
+                color: todo.done
+                  ? "var(--text-muted)"
+                  : isOverdue
+                    ? "#f87171"
+                    : "var(--text)",
+              }}
+            >
+              {todo.text}
+            </p>
+            {/* Recurrence badge */}
+            {hasRecurrence && (
+              <span
+                className="flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                style={{
+                  backgroundColor: "var(--surface-elevated)",
+                  color: "var(--text-muted)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <RefreshCw className="w-2.5 h-2.5" />
+                {RECURRENCE_LABELS[todo.recurrence]}
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-            {/* Created date — always shown */}
             {todo.createdAt && (
               <span
                 className="text-[11px]"
@@ -305,7 +350,6 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
                 {fmtDate(todo.createdAt)}
               </span>
             )}
-            {/* Deadline */}
             {todo.deadline && (
               <span
                 className={`flex items-center gap-1 text-[11px] ${isOverdue && !todo.done ? "text-red-400" : ""}`}
@@ -317,7 +361,6 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
                 Due {fmtDeadline(todo.deadline)}
               </span>
             )}
-            {/* Countdown */}
             {todo.deadline && !todo.done && timeLeft && (
               <span
                 className={`flex items-center gap-1 text-[11px] font-medium ${isOverdue ? "text-red-400" : "text-amber-400"}`}
@@ -326,7 +369,6 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
                 {timeLeft}
               </span>
             )}
-            {/* Overdue badge */}
             {isOverdue && !todo.done && (
               <span
                 className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
@@ -351,9 +393,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
 
         {/* Actions */}
         <div
-          className={`flex items-center gap-0.5 shrink-0 transition-opacity duration-150 ${
-            isHovered ? "opacity-100" : "opacity-0 md:opacity-0"
-          } opacity-100 md:opacity-0 group-hover:opacity-100`}
+          className={`flex items-center gap-0.5 shrink-0 transition-opacity duration-150 opacity-100 md:opacity-0 group-hover:opacity-100`}
         >
           <button
             onClick={openEdit}
@@ -420,6 +460,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
             >
               "<span style={{ color: "var(--text)" }}>{todo.text}</span>" will
               be permanently removed.
+              {hasRecurrence && " The recurring schedule will also be removed."}
             </p>
             <div className="flex gap-2">
               <button
@@ -445,7 +486,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
                   await onDelete(listId, todo.id);
                   setShowDelete(false);
                 }}
-                className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-colors"
+                className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold text-white"
                 style={{ backgroundColor: "#ef4444" }}
                 onMouseEnter={(e) =>
                   (e.currentTarget.style.backgroundColor = "#dc2626")

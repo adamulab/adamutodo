@@ -9,8 +9,34 @@ import {
   orderBy,
 } from "firebase/firestore";
 
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Given a todo with recurrence, return the next deadline ISO string.
+ * Returns null if no recurrence or no deadline.
+ */
+function nextDeadline(todo) {
+  if (!todo.deadline || !todo.recurrence || todo.recurrence === "none")
+    return null;
+  const base = new Date(todo.deadline);
+  switch (todo.recurrence) {
+    case "daily":
+      base.setDate(base.getDate() + 1);
+      break;
+    case "weekly":
+      base.setDate(base.getDate() + 7);
+      break;
+    case "monthly":
+      base.setMonth(base.getMonth() + 1);
+      break;
+    default:
+      return null;
+  }
+  return base.toISOString();
 }
 
 function getCachedLists(userId) {
@@ -20,11 +46,9 @@ function getCachedLists(userId) {
     return [];
   }
 }
-
 function setCachedLists(userId, lists) {
   localStorage.setItem(`lists-${userId}`, JSON.stringify(lists));
 }
-
 function getQueue(userId) {
   try {
     return JSON.parse(localStorage.getItem(`sync-queue-${userId}`) || "[]");
@@ -32,11 +56,9 @@ function getQueue(userId) {
     return [];
   }
 }
-
 function setQueue(userId, queue) {
   localStorage.setItem(`sync-queue-${userId}`, JSON.stringify(queue));
 }
-
 function enqueue(userId, type, data) {
   const queue = getQueue(userId);
   const filtered = queue.filter(
@@ -46,6 +68,8 @@ function enqueue(userId, type, data) {
   setQueue(userId, filtered);
 }
 
+// ─── hook ─────────────────────────────────────────────────────────────────────
+
 export function useData(userId) {
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,22 +78,19 @@ export function useData(userId) {
 
   const listsRef = useRef(lists);
   const pendingDeletes = useRef(new Set());
-  // KEY FIX: track IDs with in-flight writes so snapshot doesn't overwrite them
   const pendingWrites = useRef(new Set());
 
   useEffect(() => {
     listsRef.current = lists;
   }, [lists]);
 
-  // ── drain offline queue ───────────────────────────────────────────────────
+  // ── drain offline queue ──────────────────────────────────────────────────
   const drainQueue = useCallback(async (uid) => {
     if (!uid) return;
     const queue = getQueue(uid);
     if (!queue.length) return;
-
     setSyncStatus("syncing");
     const failed = [];
-
     for (const item of queue) {
       try {
         if (item.type === "save") {
@@ -88,12 +109,11 @@ export function useData(userId) {
         failed.push(item);
       }
     }
-
     setQueue(uid, failed);
     setSyncStatus(failed.length === 0 ? "synced" : "error");
   }, []);
 
-  // ── online / offline ──────────────────────────────────────────────────────
+  // ── online / offline ─────────────────────────────────────────────────────
   useEffect(() => {
     const up = () => {
       setIsOnline(true);
@@ -108,29 +128,25 @@ export function useData(userId) {
     };
   }, [userId, drainQueue]);
 
-  // ── Firestore subscription ────────────────────────────────────────────────
+  // ── Firestore subscription ───────────────────────────────────────────────
   useEffect(() => {
     if (!userId) {
       setLists([]);
       setLoading(false);
       return;
     }
-
     const cached = getCachedLists(userId);
     if (cached.length)
       setLists(cached.filter((l) => !pendingDeletes.current.has(l.id)));
     setLoading(false);
 
     const q = query(getListsRef(userId), orderBy("updatedAt", "desc"));
-
     const unsub = onSnapshot(
       q,
       (snap) => {
         const fetched = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter((l) => !pendingDeletes.current.has(l.id));
-
-        // Don't overwrite lists that have an in-flight optimistic write
         setLists((prev) => {
           const merged = fetched.map((remote) =>
             pendingWrites.current.has(remote.id)
@@ -140,7 +156,6 @@ export function useData(userId) {
           setCachedLists(userId, merged);
           return merged;
         });
-
         setSyncStatus("synced");
         drainQueue(userId);
       },
@@ -151,20 +166,15 @@ export function useData(userId) {
         setLists(fb.filter((l) => !pendingDeletes.current.has(l.id)));
       },
     );
-
     return () => unsub();
   }, [userId, drainQueue]);
 
-  // ── write helper ──────────────────────────────────────────────────────────
+  // ── write helper ─────────────────────────────────────────────────────────
   const persistList = useCallback(
     async (list) => {
       if (!userId) return;
-
       const fullList = { ...list, updatedAt: new Date().toISOString() };
-
-      // Mark as in-flight BEFORE optimistic update
       pendingWrites.current.add(fullList.id);
-
       setLists((prev) => {
         const exists = prev.some((l) => l.id === fullList.id);
         const next = exists
@@ -174,20 +184,17 @@ export function useData(userId) {
         setCachedLists(userId, next);
         return next;
       });
-
       setSyncStatus("syncing");
       try {
         await setDoc(getListRef(userId, fullList.id), {
           ...fullList,
           syncedAt: serverTimestamp(),
         });
-        // Write confirmed — safe to let snapshots overwrite again
         pendingWrites.current.delete(fullList.id);
         setSyncStatus("synced");
       } catch (err) {
         console.warn("Write failed, queuing:", err.message);
         enqueue(userId, "save", fullList);
-        // Keep in pendingWrites so offline cache stays authoritative
         setSyncStatus(navigator.onLine ? "error" : "synced");
       }
     },
@@ -196,19 +203,16 @@ export function useData(userId) {
 
   // ── public API ────────────────────────────────────────────────────────────
 
-  /** Returns null on success, { error } on validation failure */
   const saveList = useCallback(
     async (listData) => {
       const trimmedTitle = listData.title?.trim();
       if (!trimmedTitle) return { error: "Title is required" };
-
       const isDuplicate = listsRef.current.some(
         (l) =>
           l.title.trim().toLowerCase() === trimmedTitle.toLowerCase() &&
           l.id !== listData.id,
       );
       if (isDuplicate) return { error: "A list with that name already exists" };
-
       const isNew = !listData.id;
       const list = isNew
         ? {
@@ -219,7 +223,6 @@ export function useData(userId) {
             createdAt: new Date().toISOString(),
           }
         : { ...listData, title: trimmedTitle };
-
       await persistList(list);
       return null;
     },
@@ -254,6 +257,7 @@ export function useData(userId) {
         ...todoData,
         id: todoData.id ?? generateId(),
         createdAt: todoData.createdAt ?? new Date().toISOString(),
+        recurrence: todoData.recurrence ?? "none",
       };
       await persistList({ ...list, todos: [...(list.todos || []), todo] });
     },
@@ -264,9 +268,27 @@ export function useData(userId) {
     async (listId, todoId, updates) => {
       const list = listsRef.current.find((l) => l.id === listId);
       if (!list) return;
-      const updatedTodos = (list.todos || []).map((t) =>
+
+      let updatedTodos = (list.todos || []).map((t) =>
         t.id === todoId ? { ...t, ...updates } : t,
       );
+
+      // ── Recurring task: when marked done, append next occurrence ────────────
+      if (updates.done === true) {
+        const doneTodo = updatedTodos.find((t) => t.id === todoId);
+        const nd = nextDeadline(doneTodo);
+        if (nd) {
+          const nextTodo = {
+            ...doneTodo,
+            id: generateId(),
+            done: false,
+            deadline: nd,
+            createdAt: new Date().toISOString(),
+          };
+          updatedTodos = [...updatedTodos, nextTodo];
+        }
+      }
+
       await persistList({ ...list, todos: updatedTodos });
     },
     [persistList],
