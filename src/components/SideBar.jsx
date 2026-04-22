@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  Plus,
   X,
   Trash2,
   Pencil,
@@ -10,6 +9,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Logo from "../assets/taskflow.png";
+import ListNameInput from "./ListNameInput";
+import { SUGGESTION_ICONS } from "../utils/listSuggestions";
 
 export default function Sidebar({
   lists,
@@ -28,7 +29,6 @@ export default function Sidebar({
   const [editError, setEditError] = useState("");
   const [hoveredId, setHoveredId] = useState(null);
   const editRef = useRef(null);
-  const createRef = useRef(null);
 
   useEffect(() => {
     if (editingId && editRef.current) {
@@ -37,11 +37,9 @@ export default function Sidebar({
     }
   }, [editingId]);
 
-  const addList = async () => {
-    const t = newList.trim();
-    if (!t) return;
+  const handleCreate = async (title) => {
     setListError("");
-    const result = await onCreateList({ title: t });
+    const result = await onCreateList({ title });
     if (result?.error) {
       setListError(result.error);
     } else {
@@ -67,7 +65,6 @@ export default function Sidebar({
     e?.stopPropagation();
     const t = editTitle.trim();
     if (!t) return;
-    // Pass the FULL list object so saveList knows it's an update, not a create
     const result = await onUpdateList({ ...list, title: t });
     if (result?.error) {
       setEditError(result.error);
@@ -95,6 +92,7 @@ export default function Sidebar({
     ).length;
   };
 
+  const existingTitles = lists.map((l) => l.title);
   const totalTasks = lists.reduce((a, l) => a + (l.todos?.length || 0), 0);
   const completedTasks = lists.reduce(
     (a, l) => a + (l.todos || []).filter((t) => t.done).length,
@@ -126,7 +124,7 @@ export default function Sidebar({
           borderRight: "1px solid var(--border)",
         }}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="flex items-center justify-between px-5 pt-6 pb-4">
           <img src={Logo} alt="TaskFlow" className="h-7 w-auto" />
           <button
@@ -138,7 +136,7 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* ── Stats pill ── */}
+        {/* Stats pill */}
         <div
           className="mx-5 mb-4 px-3 py-2 rounded-xl flex items-center justify-between text-xs"
           style={{
@@ -155,58 +153,22 @@ export default function Sidebar({
           </span>
         </div>
 
-        {/* ── New list input ── */}
+        {/* New list input */}
         <div className="px-5 mb-3">
-          <div className="relative">
-            <input
-              ref={createRef}
-              value={newList}
-              onChange={(e) => {
-                setNewList(e.target.value);
-                if (listError) setListError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addList();
-              }}
-              placeholder="New list…"
-              className="w-full pl-3 pr-10 py-2.5 rounded-xl text-sm outline-none transition-all"
-              style={{
-                backgroundColor: "var(--surface-elevated)",
-                border: listError
-                  ? "1px solid #ef4444"
-                  : "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-            />
-            <button
-              onClick={addList}
-              disabled={!newList.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-all disabled:opacity-30"
-              style={{
-                backgroundColor: newList.trim()
-                  ? "var(--primary)"
-                  : "transparent",
-              }}
-            >
-              <Plus
-                className="w-4 h-4"
-                style={{
-                  color: newList.trim()
-                    ? "var(--text-inverse)"
-                    : "var(--text-muted)",
-                }}
-              />
-            </button>
-          </div>
-          {listError && (
-            <p className="mt-1.5 text-xs flex items-center gap-1 text-red-400">
-              <AlertCircle className="w-3 h-3 shrink-0" />
-              {listError}
-            </p>
-          )}
+          <ListNameInput
+            value={newList}
+            onChange={(v) => {
+              setNewList(v);
+              if (listError) setListError("");
+            }}
+            onSubmit={handleCreate}
+            existingTitles={existingTitles}
+            error={listError}
+            placeholder="New list…"
+          />
         </div>
 
-        {/* ── List items ── */}
+        {/* List items */}
         <div className="flex-1 overflow-y-auto px-3 pb-4 custom-scrollbar space-y-0.5">
           {lists.length === 0 && (
             <p
@@ -224,6 +186,7 @@ export default function Sidebar({
             const total = (list.todos || []).length;
             const done = (list.todos || []).filter((t) => t.done).length;
             const progress = total > 0 ? (done / total) * 100 : 0;
+            const icon = SUGGESTION_ICONS[list.title];
 
             return (
               <div key={list.id}>
@@ -244,12 +207,10 @@ export default function Sidebar({
                       ? {
                           backgroundColor: "var(--primary-muted)",
                           border: "1px solid var(--primary)",
-                          borderOpacity: 0.3,
                         }
                       : { border: "1px solid transparent" }
                   }
                 >
-                  {/* Active indicator */}
                   {isActive && (
                     <div
                       className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
@@ -257,7 +218,6 @@ export default function Sidebar({
                     />
                   )}
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0 pl-1">
                     {isEditing ? (
                       <input
@@ -279,6 +239,14 @@ export default function Sidebar({
                     ) : (
                       <>
                         <div className="flex items-center gap-1.5 mb-1">
+                          {icon && (
+                            <span
+                              className="text-sm leading-none shrink-0"
+                              aria-hidden="true"
+                            >
+                              {icon}
+                            </span>
+                          )}
                           <span
                             className="text-sm font-medium truncate"
                             style={{
@@ -301,7 +269,6 @@ export default function Sidebar({
                             </span>
                           )}
                         </div>
-                        {/* Mini progress bar */}
                         {total > 0 && (
                           <div className="flex items-center gap-2">
                             <div
@@ -329,7 +296,6 @@ export default function Sidebar({
                     )}
                   </div>
 
-                  {/* Actions */}
                   <div
                     className={`flex items-center gap-0.5 shrink-0 transition-opacity duration-150 ${
                       hoveredId === list.id || isActive || isEditing
@@ -403,7 +369,6 @@ export default function Sidebar({
                   </div>
                 </div>
 
-                {/* Edit error */}
                 {isEditing && editError && (
                   <p className="ml-4 mt-1 text-xs flex items-center gap-1 text-red-400">
                     <AlertCircle className="w-3 h-3 shrink-0" />
@@ -415,7 +380,7 @@ export default function Sidebar({
           })}
         </div>
 
-        {/* ── Footer ── */}
+        {/* Footer */}
         <div
           className="px-5 py-4 border-t"
           style={{ borderColor: "var(--border)" }}

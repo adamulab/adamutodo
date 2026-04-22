@@ -15,10 +15,6 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/**
- * Given a todo with recurrence, return the next deadline ISO string.
- * Returns null if no recurrence or no deadline.
- */
 function nextDeadline(todo) {
   if (!todo.deadline || !todo.recurrence || todo.recurrence === "none")
     return null;
@@ -79,6 +75,8 @@ export function useData(userId) {
   const listsRef = useRef(lists);
   const pendingDeletes = useRef(new Set());
   const pendingWrites = useRef(new Set());
+  // Track consecutive write failures to avoid flapping on transient errors
+  const writeFailCount = useRef(0);
 
   useEffect(() => {
     listsRef.current = lists;
@@ -135,18 +133,21 @@ export function useData(userId) {
       setLoading(false);
       return;
     }
+
     const cached = getCachedLists(userId);
     if (cached.length)
       setLists(cached.filter((l) => !pendingDeletes.current.has(l.id)));
     setLoading(false);
 
     const q = query(getListsRef(userId), orderBy("updatedAt", "desc"));
+
     const unsub = onSnapshot(
       q,
       (snap) => {
         const fetched = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter((l) => !pendingDeletes.current.has(l.id));
+
         setLists((prev) => {
           const merged = fetched.map((remote) =>
             pendingWrites.current.has(remote.id)
@@ -156,16 +157,29 @@ export function useData(userId) {
           setCachedLists(userId, merged);
           return merged;
         });
-        setSyncStatus("synced");
+
+        // Snapshot succeeded — clear any error state and reset fail counter
+        writeFailCount.current = 0;
+        setSyncStatus((prev) => (prev === "syncing" ? "syncing" : "synced"));
+
         drainQueue(userId);
       },
       (err) => {
-        console.error("Snapshot error:", err);
-        setSyncStatus("error");
+        // Only log — don't set error status here because snapshot errors are
+        // usually transient (e.g. going offline). The badge would otherwise
+        // stay permanently red even after reconnection.
+        console.warn(
+          "Snapshot error (will retry automatically):",
+          err.code,
+          err.message,
+        );
         const fb = getCachedLists(userId);
         setLists(fb.filter((l) => !pendingDeletes.current.has(l.id)));
+        // Only show error badge if we are definitively online but still failing
+        if (navigator.onLine) setSyncStatus("error");
       },
     );
+
     return () => unsub();
   }, [userId, drainQueue]);
 
@@ -174,7 +188,9 @@ export function useData(userId) {
     async (list) => {
       if (!userId) return;
       const fullList = { ...list, updatedAt: new Date().toISOString() };
+
       pendingWrites.current.add(fullList.id);
+
       setLists((prev) => {
         const exists = prev.some((l) => l.id === fullList.id);
         const next = exists
@@ -184,18 +200,53 @@ export function useData(userId) {
         setCachedLists(userId, next);
         return next;
       });
+
       setSyncStatus("syncing");
+
       try {
         await setDoc(getListRef(userId, fullList.id), {
           ...fullList,
           syncedAt: serverTimestamp(),
         });
         pendingWrites.current.delete(fullList.id);
+        writeFailCount.current = 0;
         setSyncStatus("synced");
       } catch (err) {
-        console.warn("Write failed, queuing:", err.message);
+        console.warn("Write failed:", err.code, err.message);
         enqueue(userId, "save", fullList);
-        setSyncStatus(navigator.onLine ? "error" : "synced");
+
+        writeFailCount.current += 1;
+
+        if (!navigator.onLine) {
+          // Offline — this is expected, don't show an error badge
+          setSyncStatus("synced");
+        } else if (writeFailCount.current >= 2) {
+          // Two consecutive online failures → genuine problem, show error
+          setSyncStatus("error");
+        } else {
+          // First failure — could be transient, stay in syncing state briefly
+          setSyncStatus("syncing");
+          // Retry once after 3 s
+          setTimeout(async () => {
+            try {
+              await setDoc(getListRef(userId, fullList.id), {
+                ...fullList,
+                syncedAt: serverTimestamp(),
+              });
+              pendingWrites.current.delete(fullList.id);
+              writeFailCount.current = 0;
+              // Remove from queue since we succeeded
+              const q = getQueue(userId).filter(
+                (item) => item.data?.id !== fullList.id,
+              );
+              setQueue(userId, q);
+              setSyncStatus("synced");
+            } catch {
+              writeFailCount.current += 1;
+              setSyncStatus("error");
+            }
+          }, 3000);
+        }
       }
     },
     [userId],
@@ -273,19 +324,20 @@ export function useData(userId) {
         t.id === todoId ? { ...t, ...updates } : t,
       );
 
-      // ── Recurring task: when marked done, append next occurrence ────────────
       if (updates.done === true) {
         const doneTodo = updatedTodos.find((t) => t.id === todoId);
         const nd = nextDeadline(doneTodo);
         if (nd) {
-          const nextTodo = {
-            ...doneTodo,
-            id: generateId(),
-            done: false,
-            deadline: nd,
-            createdAt: new Date().toISOString(),
-          };
-          updatedTodos = [...updatedTodos, nextTodo];
+          updatedTodos = [
+            ...updatedTodos,
+            {
+              ...doneTodo,
+              id: generateId(),
+              done: false,
+              deadline: nd,
+              createdAt: new Date().toISOString(),
+            },
+          ];
         }
       }
 

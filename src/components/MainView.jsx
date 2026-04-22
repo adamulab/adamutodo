@@ -26,6 +26,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import AdUnit from "./AdUnit";
+import ListNameInput from "./ListNameInput";
 
 // ── Confirm modal ─────────────────────────────────────────────────────────────
 function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
@@ -328,10 +329,12 @@ export default function MainView({
   const [recurrence, setRecurrence] = useState("none");
   const [inputFocused, setInputFocused] = useState(false);
   const [showRecurrence, setShowRecurrence] = useState(false);
+  // Create list card state
   const [creatingList, setCreatingList] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newTitleErr, setNewTitleErr] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, item: null });
+  // Header rename state
   const [renamingHeader, setRenamingHeader] = useState(false);
   const [headerTitle, setHeaderTitle] = useState("");
   const [headerRenameErr, setHeaderRenameErr] = useState("");
@@ -357,6 +360,7 @@ export default function MainView({
   }, [onOpenSearch]);
 
   const safeLists = Array.isArray(lists) ? lists : [];
+  const existingTitles = safeLists.map((l) => l.title);
 
   const getStats = (l) => {
     if (!l?.todos) return { total: 0, completed: 0, overdue: 0, progress: 0 };
@@ -373,10 +377,10 @@ export default function MainView({
     };
   };
 
-  const addList = async () => {
-    const t = newTitle.trim();
-    if (!t) return;
-    const result = await onCreateList({ title: t });
+  // Create list via ListNameInput
+  const handleCreateList = async (title) => {
+    setNewTitleErr("");
+    const result = await onCreateList({ title });
     if (result?.error) {
       setNewTitleErr(result.error);
     } else {
@@ -480,6 +484,7 @@ export default function MainView({
         className="flex-1 flex flex-col h-full overflow-hidden"
         style={{ backgroundColor: "var(--background)" }}
       >
+        {/* Header */}
         <header
           className="shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 border-b"
           style={{
@@ -488,7 +493,6 @@ export default function MainView({
             backdropFilter: "blur(12px)",
           }}
         >
-          {/* Left: hamburger + title */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={onOpenSidebar}
@@ -518,7 +522,6 @@ export default function MainView({
             </div>
           </div>
 
-          {/* Right: search + new list + theme + user — all in flow, no overlap */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={onOpenSearch}
@@ -544,7 +547,6 @@ export default function MainView({
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">New List</span>
             </button>
-            {/* Theme toggle + user menu — in flow here, not fixed */}
             {headerControls}
           </div>
         </header>
@@ -639,6 +641,7 @@ export default function MainView({
                 />
               ))}
 
+              {/* ── Create card — uses ListNameInput with suggestions ── */}
               {creatingList ? (
                 <div
                   className="p-5 rounded-2xl border shadow-lg"
@@ -647,79 +650,62 @@ export default function MainView({
                     borderColor: "var(--primary)",
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-3">
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: "var(--primary-muted)" }}
-                    >
-                      <Plus
-                        className="w-4 h-4"
-                        style={{ color: "var(--primary)" }}
-                      />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: "var(--primary-muted)" }}
+                      >
+                        <Plus
+                          className="w-4 h-4"
+                          style={{ color: "var(--primary)" }}
+                        />
+                      </div>
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text)" }}
+                      >
+                        New list
+                      </span>
                     </div>
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: "var(--text)" }}
-                    >
-                      New list
-                    </span>
-                  </div>
-                  <input
-                    autoFocus
-                    value={newTitle}
-                    onChange={(e) => {
-                      setNewTitle(e.target.value);
-                      if (newTitleErr) setNewTitleErr("");
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") addList();
-                      if (e.key === "Escape") {
-                        setCreatingList(false);
-                        setNewTitle("");
-                        setNewTitleErr("");
-                      }
-                    }}
-                    placeholder="List name…"
-                    className="w-full px-3 py-2 rounded-xl text-sm outline-none mb-1"
-                    style={{
-                      backgroundColor: "var(--background)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text)",
-                    }}
-                  />
-                  {newTitleErr && (
-                    <p className="text-xs flex items-center gap-1 text-red-400 mb-2">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {newTitleErr}
-                    </p>
-                  )}
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={addList}
-                      disabled={!newTitle.trim()}
-                      className="flex-1 py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
-                      style={{
-                        backgroundColor: "var(--primary)",
-                        color: "var(--text-inverse)",
-                      }}
-                    >
-                      Create
-                    </button>
                     <button
                       onClick={() => {
                         setCreatingList(false);
                         setNewTitle("");
                         setNewTitleErr("");
                       }}
-                      className="px-3 py-2 rounded-xl text-xs"
-                      style={{
-                        backgroundColor: "var(--surface-elevated)",
-                        color: "var(--text-muted)",
-                      }}
+                      className="p-1 rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
+                      style={{ color: "var(--text-muted)" }}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
+
+                  {/* ListNameInput with suggestions */}
+                  <ListNameInput
+                    value={newTitle}
+                    onChange={(v) => {
+                      setNewTitle(v);
+                      if (newTitleErr) setNewTitleErr("");
+                    }}
+                    onSubmit={handleCreateList}
+                    existingTitles={existingTitles}
+                    error={newTitleErr}
+                    placeholder="List name…"
+                    autoFocus
+                  />
+
+                  <button
+                    onClick={() => handleCreateList(newTitle)}
+                    disabled={!newTitle.trim()}
+                    className="w-full mt-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-40 transition-colors"
+                    style={{
+                      backgroundColor: "var(--primary)",
+                      color: "var(--text-inverse)",
+                    }}
+                  >
+                    Create list
+                  </button>
                 </div>
               ) : (
                 <div
@@ -775,6 +761,7 @@ export default function MainView({
       className="flex-1 flex flex-col h-full overflow-hidden"
       style={{ backgroundColor: "var(--background)" }}
     >
+      {/* Header */}
       <header
         className="shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 border-b"
         style={{
@@ -783,7 +770,6 @@ export default function MainView({
           backdropFilter: "blur(12px)",
         }}
       >
-        {/* Left: back nav + title */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <button
             onClick={onOpenSidebar}
@@ -826,14 +812,14 @@ export default function MainView({
               />
               <button
                 onClick={saveHeaderRename}
-                className="p-1.5 rounded-xl hover:bg-[var(--primary)]/10 shrink-0 transition-colors"
+                className="p-1.5 rounded-xl hover:bg-[var(--primary)]/10 shrink-0"
                 style={{ color: "var(--primary)" }}
               >
                 <Check className="w-4 h-4" />
               </button>
               <button
                 onClick={cancelHeaderRename}
-                className="p-1.5 rounded-xl hover:bg-[var(--surface-hover)] shrink-0 transition-colors"
+                className="p-1.5 rounded-xl hover:bg-[var(--surface-hover)] shrink-0"
                 style={{ color: "var(--text-muted)" }}
               >
                 <X className="w-4 h-4" />
@@ -864,7 +850,6 @@ export default function MainView({
           )}
         </div>
 
-        {/* Right: progress + search + theme + user */}
         <div className="flex items-center gap-2 shrink-0">
           {overdueCount > 0 && (
             <span
@@ -905,30 +890,27 @@ export default function MainView({
           >
             <Search className="w-4 h-4" />
           </button>
-          {/* Theme toggle + user menu — in flow, no fixed positioning */}
           {headerControls}
         </div>
       </header>
 
-      {/* Rename error + subtitle */}
-      {(headerRenameErr || true) && (
-        <div
-          className="px-4 sm:px-6 pb-1 pt-1"
-          style={{ backgroundColor: "var(--surface)" }}
-        >
-          {headerRenameErr && (
-            <p className="text-xs flex items-center gap-1 text-red-400">
-              <AlertCircle className="w-3 h-3 shrink-0" />
-              {headerRenameErr}
-            </p>
-          )}
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {completedCount} of {todos.length} tasks completed
+      {/* Subtitle */}
+      <div
+        className="px-4 sm:px-6 py-1.5"
+        style={{ backgroundColor: "var(--surface)" }}
+      >
+        {headerRenameErr && (
+          <p className="text-xs flex items-center gap-1 text-red-400 mb-0.5">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            {headerRenameErr}
           </p>
-        </div>
-      )}
+        )}
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {completedCount} of {todos.length} tasks completed
+        </p>
+      </div>
 
-      {/* Add todo input */}
+      {/* Add todo */}
       <div
         className="shrink-0 px-4 sm:px-6 py-3 border-b"
         style={{
@@ -958,7 +940,6 @@ export default function MainView({
             className="w-full px-4 py-3 bg-transparent text-sm outline-none"
             style={{ color: "var(--text)" }}
           />
-
           <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
             <div
               className="flex items-center gap-1.5 flex-1 min-w-0 px-2.5 py-1.5 rounded-xl text-xs"
@@ -1022,7 +1003,6 @@ export default function MainView({
               <span className="hidden sm:inline">Add</span>
             </button>
           </div>
-
           {showRecurrence && (
             <div className="px-3 pb-3 flex items-center gap-2">
               <RefreshCw

@@ -1,9 +1,9 @@
 import { initializeApp } from "firebase/app";
 import {
-  getFirestore,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  persistentSingleTabManager,
   collection,
   doc,
 } from "firebase/firestore";
@@ -30,13 +30,30 @@ if (!firebaseConfig.apiKey) {
 
 const app = initializeApp(firebaseConfig);
 
-// Modern persistence API — supports multiple tabs and cross-device sync
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
-});
+// Try multi-tab persistence first (requires Blaze plan).
+// Fall back to single-tab persistence on Spark plan or unsupported browsers.
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
+} catch {
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentSingleTabManager(),
+      }),
+    });
+  } catch {
+    // Last resort: no persistence (memory only)
+    const { getFirestore } = await import("firebase/firestore");
+    db = getFirestore(app);
+  }
+}
 
+export { db };
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -45,7 +62,7 @@ export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
 export const signInUser = signInWithGoogle;
 export const logoutUser = () => signOut(auth);
 export const signOutUser = logoutUser;
-export const onAuthChange = (callback) => onAuthStateChanged(auth, callback);
+export const onAuthChange = (cb) => onAuthStateChanged(auth, cb);
 
 // Firestore ref helpers
 export const getUserRef = (userId) => doc(db, "users", userId);
