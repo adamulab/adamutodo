@@ -11,11 +11,11 @@ import {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function generateId() {
+export function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function nextDeadline(todo) {
+export function nextDeadline(todo) {
   if (!todo.deadline || !todo.recurrence || todo.recurrence === "none")
     return null;
   const base = new Date(todo.deadline);
@@ -75,7 +75,6 @@ export function useData(userId) {
   const listsRef = useRef(lists);
   const pendingDeletes = useRef(new Set());
   const pendingWrites = useRef(new Set());
-  // Track consecutive write failures to avoid flapping on transient errors
   const writeFailCount = useRef(0);
 
   useEffect(() => {
@@ -133,21 +132,18 @@ export function useData(userId) {
       setLoading(false);
       return;
     }
-
     const cached = getCachedLists(userId);
     if (cached.length)
       setLists(cached.filter((l) => !pendingDeletes.current.has(l.id)));
     setLoading(false);
 
     const q = query(getListsRef(userId), orderBy("updatedAt", "desc"));
-
     const unsub = onSnapshot(
       q,
       (snap) => {
         const fetched = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter((l) => !pendingDeletes.current.has(l.id));
-
         setLists((prev) => {
           const merged = fetched.map((remote) =>
             pendingWrites.current.has(remote.id)
@@ -157,29 +153,17 @@ export function useData(userId) {
           setCachedLists(userId, merged);
           return merged;
         });
-
-        // Snapshot succeeded — clear any error state and reset fail counter
         writeFailCount.current = 0;
         setSyncStatus((prev) => (prev === "syncing" ? "syncing" : "synced"));
-
         drainQueue(userId);
       },
       (err) => {
-        // Only log — don't set error status here because snapshot errors are
-        // usually transient (e.g. going offline). The badge would otherwise
-        // stay permanently red even after reconnection.
-        console.warn(
-          "Snapshot error (will retry automatically):",
-          err.code,
-          err.message,
-        );
+        console.warn("Snapshot error:", err.code, err.message);
         const fb = getCachedLists(userId);
         setLists(fb.filter((l) => !pendingDeletes.current.has(l.id)));
-        // Only show error badge if we are definitively online but still failing
         if (navigator.onLine) setSyncStatus("error");
       },
     );
-
     return () => unsub();
   }, [userId, drainQueue]);
 
@@ -188,9 +172,7 @@ export function useData(userId) {
     async (list) => {
       if (!userId) return;
       const fullList = { ...list, updatedAt: new Date().toISOString() };
-
       pendingWrites.current.add(fullList.id);
-
       setLists((prev) => {
         const exists = prev.some((l) => l.id === fullList.id);
         const next = exists
@@ -200,9 +182,7 @@ export function useData(userId) {
         setCachedLists(userId, next);
         return next;
       });
-
       setSyncStatus("syncing");
-
       try {
         await setDoc(getListRef(userId, fullList.id), {
           ...fullList,
@@ -214,19 +194,13 @@ export function useData(userId) {
       } catch (err) {
         console.warn("Write failed:", err.code, err.message);
         enqueue(userId, "save", fullList);
-
         writeFailCount.current += 1;
-
         if (!navigator.onLine) {
-          // Offline — this is expected, don't show an error badge
           setSyncStatus("synced");
         } else if (writeFailCount.current >= 2) {
-          // Two consecutive online failures → genuine problem, show error
           setSyncStatus("error");
         } else {
-          // First failure — could be transient, stay in syncing state briefly
           setSyncStatus("syncing");
-          // Retry once after 3 s
           setTimeout(async () => {
             try {
               await setDoc(getListRef(userId, fullList.id), {
@@ -235,7 +209,6 @@ export function useData(userId) {
               });
               pendingWrites.current.delete(fullList.id);
               writeFailCount.current = 0;
-              // Remove from queue since we succeeded
               const q = getQueue(userId).filter(
                 (item) => item.data?.id !== fullList.id,
               );
@@ -271,6 +244,7 @@ export function useData(userId) {
             title: trimmedTitle,
             id: generateId(),
             todos: [],
+            archivedTodos: [],
             createdAt: new Date().toISOString(),
           }
         : { ...listData, title: trimmedTitle };
@@ -320,28 +294,90 @@ export function useData(userId) {
       const list = listsRef.current.find((l) => l.id === listId);
       if (!list) return;
 
-      let updatedTodos = (list.todos || []).map((t) =>
+      const todos = list.todos || [];
+      const archivedTodos = list.archivedTodos || [];
+
+      let updatedTodos = todos.map((t) =>
         t.id === todoId ? { ...t, ...updates } : t,
       );
+      let updatedArchived = [...archivedTodos];
 
       if (updates.done === true) {
         const doneTodo = updatedTodos.find((t) => t.id === todoId);
-        const nd = nextDeadline(doneTodo);
-        if (nd) {
-          updatedTodos = [
-            ...updatedTodos,
-            {
+        const isRecurring =
+          doneTodo?.recurrence && doneTodo.recurrence !== "none";
+
+        if (isRecurring) {
+          // Recurring: create next occurrence, keep done task visible briefly then archive
+          const nd = nextDeadline(doneTodo);
+          if (nd) {
+            const nextTodo = {
               ...doneTodo,
               id: generateId(),
               done: false,
               deadline: nd,
               createdAt: new Date().toISOString(),
-            },
+            };
+            updatedTodos = [...updatedTodos, nextTodo];
+          }
+          // Archive the completed recurring instance too
+          updatedArchived = [
+            { ...doneTodo, archivedAt: new Date().toISOString() },
+            ...updatedArchived,
           ];
+          updatedTodos = updatedTodos.filter((t) => t.id !== todoId);
+        } else {
+          // Non-recurring: move immediately to archive
+          updatedArchived = [
+            { ...doneTodo, archivedAt: new Date().toISOString() },
+            ...updatedArchived,
+          ];
+          updatedTodos = updatedTodos.filter((t) => t.id !== todoId);
         }
       }
 
-      await persistList({ ...list, todos: updatedTodos });
+      await persistList({
+        ...list,
+        todos: updatedTodos,
+        archivedTodos: updatedArchived,
+      });
+    },
+    [persistList],
+  );
+
+  /**
+   * Move an archived task back to the active todos list.
+   */
+  const unarchiveTodo = useCallback(
+    async (listId, todoId) => {
+      const list = listsRef.current.find((l) => l.id === listId);
+      if (!list) return;
+      const archivedTodos = list.archivedTodos || [];
+      const todo = archivedTodos.find((t) => t.id === todoId);
+      if (!todo) return;
+      const { archivedAt, ...restored } = todo;
+      await persistList({
+        ...list,
+        todos: [{ ...restored, done: false }, ...(list.todos || [])],
+        archivedTodos: archivedTodos.filter((t) => t.id !== todoId),
+      });
+    },
+    [persistList],
+  );
+
+  /**
+   * Permanently delete an archived task.
+   */
+  const deleteArchivedTodo = useCallback(
+    async (listId, todoId) => {
+      const list = listsRef.current.find((l) => l.id === listId);
+      if (!list) return;
+      await persistList({
+        ...list,
+        archivedTodos: (list.archivedTodos || []).filter(
+          (t) => t.id !== todoId,
+        ),
+      });
     },
     [persistList],
   );
@@ -378,5 +414,7 @@ export function useData(userId) {
     updateTodo,
     deleteTodo,
     reorderTodos,
+    unarchiveTodo,
+    deleteArchivedTodo,
   };
 }

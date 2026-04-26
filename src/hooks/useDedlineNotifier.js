@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 
-// Synthesise a gentle 3-beep chime using Web Audio API — no audio file needed
+// Synthesise a 3-note ascending chime — no audio file needed
 function playDueSound() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -24,46 +24,38 @@ function playDueSound() {
     beep(988, 0.2, 0.18);
     beep(1174, 0.4, 0.28);
     setTimeout(() => ctx.close(), 1200);
-  } catch (_) {
-    // Audio not supported — fail silently
-  }
+  } catch (_) {}
 }
 
-// Request push permission if not already granted
 async function requestPushPermission() {
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
   if (Notification.permission === "denied") return false;
-  const result = await Notification.requestPermission();
-  return result === "granted";
+  return (await Notification.requestPermission()) === "granted";
 }
 
-function sendPushNotification(title, body, tag) {
+function sendPush(title, body, tag) {
   if (!("Notification" in window) || Notification.permission !== "granted")
     return;
   try {
     new Notification(title, {
       body,
-      tag, // prevents duplicate toasts for the same task
+      tag,
       icon: "/favicon.ico",
-      badge: "/favicon.ico",
       requireInteraction: false,
     });
   } catch (_) {}
 }
 
 /**
- * useDeadlineNotifier
+ * Scans todos every 30 s.
  *
- * Scans todos every 30 s. For each non-done todo with a deadline:
- *  - within 5 min in the future  → "Due soon" warning
- *  - within 0–2 min past due     → "Now overdue" alert
+ * Due-soon  (1–5 min before deadline) → warning toast + chime + push
+ * Overdue   (0–2 min after deadline)  → error toast  + chime + push
  *
- * Fires sound + push notification once per todo per event.
- * Pass notify() from useNotifications to also show an in-app toast.
+ * Each event fires exactly once per todo per session.
  */
 export function useDeadlineNotifier(lists, notify) {
-  // Set of todoIds we've already notified so we don't repeat
   const notifiedSoon = useRef(new Set());
   const notifiedOverdue = useRef(new Set());
   const permRequested = useRef(false);
@@ -76,30 +68,30 @@ export function useDeadlineNotifier(lists, notify) {
         if (todo.done || !todo.deadline) continue;
 
         const due = new Date(todo.deadline).getTime();
-        const diff = due - now; // ms until due (negative = overdue)
+        const diff = due - now; // positive = future, negative = past
 
-        // ── Due within 5 minutes ──────────────────────────────────────────
+        // ── Due soon: between 1 and 5 minutes away ─────────────────────────
+        // Lower bound of 1 min avoids double-firing with the overdue check
         if (
-          diff > 0 &&
-          diff <= 5 * 60 * 1000 &&
+          diff > 60_000 &&
+          diff <= 5 * 60_000 &&
           !notifiedSoon.current.has(todo.id)
         ) {
           notifiedSoon.current.add(todo.id);
 
-          // Request push permission on first hit (requires user gesture
-          // context; browsers may block if no prior gesture — that's fine)
           if (!permRequested.current) {
             permRequested.current = true;
             requestPushPermission();
           }
 
-          const mins = Math.ceil(diff / 60000);
+          const mins = Math.ceil(diff / 60_000);
           playDueSound();
-          sendPushNotification(
+          sendPush(
             "⏰ Task due soon",
             `"${todo.text}" is due in ${mins} minute${mins !== 1 ? "s" : ""}`,
             `soon-${todo.id}`,
           );
+          // Always "warning" for due-soon — never flips to error
           notify?.(
             "warning",
             `⏰ "${todo.text}" due in ${mins} min — ${list.title}`,
@@ -107,45 +99,43 @@ export function useDeadlineNotifier(lists, notify) {
           );
         }
 
-        // ── Just became overdue (0–2 min past) ───────────────────────────
+        // ── Overdue: 0–2 minutes past due ──────────────────────────────────
         if (
-          diff < 0 &&
-          diff >= -2 * 60 * 1000 &&
+          diff <= 0 &&
+          diff >= -2 * 60_000 &&
           !notifiedOverdue.current.has(todo.id)
         ) {
           notifiedOverdue.current.add(todo.id);
           playDueSound();
-          sendPushNotification(
+          sendPush(
             "🔴 Task overdue",
             `"${todo.text}" was due in ${list.title}`,
             `overdue-${todo.id}`,
           );
+          // Always "error" for overdue — never flips to warning
           notify?.(
             "error",
             `🔴 "${todo.text}" is now overdue — ${list.title}`,
-            10000,
+            10_000,
           );
         }
       }
     }
   }, [lists, notify]);
 
-  // Clear notified sets when a todo is marked done (it disappears from lists)
+  // Clean up notification sets when todos are archived (removed from active list)
   useEffect(() => {
-    const allIds = new Set(
-      lists.flatMap((l) =>
-        (l.todos || []).filter((t) => !t.done).map((t) => t.id),
-      ),
+    const activeIds = new Set(
+      lists.flatMap((l) => (l.todos || []).map((t) => t.id)),
     );
-    // Remove IDs no longer in active undone todos so re-scheduling works
     for (const id of notifiedSoon.current)
-      if (!allIds.has(id)) notifiedSoon.current.delete(id);
+      if (!activeIds.has(id)) notifiedSoon.current.delete(id);
     for (const id of notifiedOverdue.current)
-      if (!allIds.has(id)) notifiedOverdue.current.delete(id);
+      if (!activeIds.has(id)) notifiedOverdue.current.delete(id);
   }, [lists]);
 
   useEffect(() => {
-    check(); // immediate check on mount / list change
+    check();
     const timer = setInterval(check, 30_000);
     return () => clearInterval(timer);
   }, [check]);

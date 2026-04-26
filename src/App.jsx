@@ -9,6 +9,7 @@ import {
 } from "./components/useNotifications";
 import { useSearch } from "./hooks/useSearch";
 import MainView from "./components/MainView";
+import TimelineView from "./components/TimelineView";
 import Sidebar from "./components/SideBar";
 import SearchOverlay from "./components/SearchOverlay";
 import Footer from "./components/Footer";
@@ -22,6 +23,7 @@ const ADSENSE_ID = import.meta.env.VITE_ADSENSE_ID || "ca-pub-7316645635680327";
 
 function AppContent() {
   const { user, loading: authLoading, authChecked } = useAuth();
+  // activeListId: string = list id, "timeline" = timeline view, null = grid
   const [activeListId, setActiveListId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -40,6 +42,8 @@ function AppContent() {
     updateTodo,
     deleteTodo,
     reorderTodos,
+    unarchiveTodo,
+    deleteArchivedTodo,
   } = useData(user?.uid);
 
   useDeadlineNotifier(lists, warning);
@@ -57,7 +61,12 @@ function AppContent() {
 
   if (!user) return <LoginScreen />;
 
-  const activeList = lists.find((l) => l.id === activeListId);
+  const activeList =
+    typeof activeListId === "string" && activeListId !== "timeline"
+      ? lists.find((l) => l.id === activeListId)
+      : null;
+
+  // ── handlers with notifications ───────────────────────────────────────────
 
   const handleCreateList = async (data) => {
     const result = await saveList(data);
@@ -87,19 +96,17 @@ function AppContent() {
 
   const handleUpdateTodo = async (listId, todoId, updates) => {
     await updateTodo(listId, todoId, updates);
-    if ("done" in updates) {
-      if (updates.done) {
-        const list = lists.find((l) => l.id === listId);
-        const todo = list?.todos?.find((t) => t.id === todoId);
-        const hasRecurrence = todo?.recurrence && todo.recurrence !== "none";
-        success(
-          hasRecurrence
-            ? `✅ Done! Next ${todo.recurrence} task created`
-            : "Task completed! 🎉",
-        );
-      } else {
-        info("Task reopened");
-      }
+    if (updates.done === true) {
+      const list = lists.find((l) => l.id === listId);
+      const todo = list?.todos?.find((t) => t.id === todoId);
+      const isRecurring = todo?.recurrence && todo.recurrence !== "none";
+      success(
+        isRecurring
+          ? `✅ Done! Next ${todo.recurrence} task created`
+          : "✅ Task completed and archived",
+      );
+    } else if ("done" in updates) {
+      info("Task reopened");
     } else {
       success("Task updated");
     }
@@ -108,6 +115,16 @@ function AppContent() {
   const handleDeleteTodo = async (listId, todoId) => {
     await deleteTodo(listId, todoId);
     info("Task deleted");
+  };
+
+  const handleUnarchive = async (listId, todoId) => {
+    await unarchiveTodo(listId, todoId);
+    success("Task restored");
+  };
+
+  const handleDeleteArchived = async (listId, todoId) => {
+    await deleteArchivedTodo(listId, todoId);
+    info("Task permanently deleted");
   };
 
   const handleSelectList = (listId) => {
@@ -119,9 +136,8 @@ function AppContent() {
   const showSyncBadge =
     !isOnline || syncStatus === "syncing" || syncStatus === "error";
 
-  // These are passed into MainView so they render inside the header flow
   const headerControls = (
-    <div className="flex items-center gap-2 shrink-0">
+    <div className="flex items-center gap-1.5 shrink-0">
       <ThemeToggle />
       <UserMenu />
     </div>
@@ -129,10 +145,10 @@ function AppContent() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--text)]">
-      {/* Sync badge — centered top, only when needed */}
+      {/* Sync badge */}
       {showSyncBadge && (
         <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg border pointer-events-none ${
+          className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg border pointer-events-none ${
             syncStatus === "error"
               ? "bg-red-500/20 text-red-400 border-red-500/30"
               : !isOnline
@@ -143,7 +159,7 @@ function AppContent() {
           {!isOnline ? (
             <>
               <WifiOff className="w-3.5 h-3.5" />
-              <span>Offline — changes saved locally</span>
+              <span>Offline</span>
             </>
           ) : syncStatus === "syncing" ? (
             <>
@@ -163,6 +179,7 @@ function AppContent() {
         lists={lists}
         activeListId={activeListId}
         onSelectList={handleSelectList}
+        onSelectTimeline={() => setActiveListId("timeline")}
         onCreateList={handleCreateList}
         onUpdateList={handleUpdateList}
         onDeleteList={handleDeleteList}
@@ -172,24 +189,35 @@ function AppContent() {
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-full">
-        <MainView
-          list={activeList}
-          lists={lists}
-          activeListId={activeListId}
-          onBack={() => setActiveListId(null)}
-          onSelectList={handleSelectList}
-          onCreateList={handleCreateList}
-          onUpdateList={handleUpdateList}
-          onDeleteList={handleDeleteList}
-          onCreateTodo={handleCreateTodo}
-          onUpdateTodo={handleUpdateTodo}
-          onDeleteTodo={handleDeleteTodo}
-          onReorderTodos={reorderTodos}
-          onOpenSidebar={() => setIsSidebarOpen(true)}
-          onOpenSearch={() => setIsSearchOpen(true)}
-          headerControls={headerControls}
-          isLoading={dataLoading}
-        />
+        {activeListId === "timeline" ? (
+          <TimelineView
+            lists={lists}
+            onSelectList={handleSelectList}
+            onOpenSidebar={() => setIsSidebarOpen(true)}
+            headerControls={headerControls}
+          />
+        ) : (
+          <MainView
+            list={activeList}
+            lists={lists}
+            activeListId={activeListId}
+            onBack={() => setActiveListId(null)}
+            onSelectList={handleSelectList}
+            onCreateList={handleCreateList}
+            onUpdateList={handleUpdateList}
+            onDeleteList={handleDeleteList}
+            onCreateTodo={handleCreateTodo}
+            onUpdateTodo={handleUpdateTodo}
+            onDeleteTodo={handleDeleteTodo}
+            onReorderTodos={reorderTodos}
+            onUnarchiveTodo={handleUnarchive}
+            onDeleteArchivedTodo={handleDeleteArchived}
+            onOpenSidebar={() => setIsSidebarOpen(true)}
+            onOpenSearch={() => setIsSearchOpen(true)}
+            headerControls={headerControls}
+            isLoading={dataLoading}
+          />
+        )}
         <Footer />
       </div>
 

@@ -7,6 +7,7 @@ import {
   AlertCircle,
   LayoutGrid,
   ChevronRight,
+  Calendar,
 } from "lucide-react";
 import Logo from "../assets/taskflow.png";
 import ListNameInput from "./ListNameInput";
@@ -16,6 +17,7 @@ export default function Sidebar({
   lists,
   activeListId,
   onSelectList,
+  onSelectTimeline,
   onCreateList,
   onUpdateList,
   onDeleteList,
@@ -54,13 +56,11 @@ export default function Sidebar({
     setEditTitle(list.title);
     setEditError("");
   };
-
   const cancelEdit = () => {
     setEditingId(null);
     setEditTitle("");
     setEditError("");
   };
-
   const saveEdit = async (list, e) => {
     e?.stopPropagation();
     const t = editTitle.trim();
@@ -73,7 +73,6 @@ export default function Sidebar({
       setEditError("");
     }
   };
-
   const handleEditKey = (e, list) => {
     if (e.key === "Enter") {
       e.stopPropagation();
@@ -95,13 +94,13 @@ export default function Sidebar({
   const existingTitles = lists.map((l) => l.title);
   const totalTasks = lists.reduce((a, l) => a + (l.todos?.length || 0), 0);
   const completedTasks = lists.reduce(
-    (a, l) => a + (l.todos || []).filter((t) => t.done).length,
+    (a, l) => a + (l.archivedTodos?.length || 0),
     0,
   );
+  const isTimeline = activeListId === "timeline";
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40 md:hidden transition-all duration-300"
         style={{
@@ -126,7 +125,7 @@ export default function Sidebar({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-6 pb-4">
-          <img src={Logo} alt="TaskFlow" className="h-7 w-auto" />
+          <img src={Logo} alt="TaskFlow" className="h-12 w-auto" />
           <button
             onClick={() => setIsOpen(false)}
             className="md:hidden p-1.5 rounded-xl hover:bg-[var(--surface-hover)] transition-colors"
@@ -136,7 +135,7 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Stats pill */}
+        {/* Stats */}
         <div
           className="mx-5 mb-4 px-3 py-2 rounded-xl flex items-center justify-between text-xs"
           style={{
@@ -148,10 +147,52 @@ export default function Sidebar({
             <LayoutGrid className="w-3.5 h-3.5" />
             {lists.length} list{lists.length !== 1 ? "s" : ""}
           </span>
-          <span>
-            {completedTasks}/{totalTasks} tasks done
-          </span>
+          <span>{completedTasks} completed</span>
         </div>
+
+        {/* Timeline nav item */}
+        <div className="px-3 mb-2">
+          <button
+            onClick={() => {
+              onSelectTimeline();
+              setIsOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-200"
+            style={{
+              backgroundColor: isTimeline
+                ? "var(--primary-muted)"
+                : "transparent",
+              border: isTimeline
+                ? "1px solid var(--primary)"
+                : "1px solid transparent",
+              color: isTimeline ? "var(--primary)" : "var(--text-muted)",
+            }}
+            onMouseEnter={(e) => {
+              if (!isTimeline)
+                e.currentTarget.style.backgroundColor = "var(--surface-hover)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isTimeline)
+                e.currentTarget.style.backgroundColor = "transparent";
+            }}
+          >
+            {isTimeline && (
+              <div
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+                style={{ backgroundColor: "var(--primary)" }}
+              />
+            )}
+            <Calendar className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-medium">Timeline</span>
+            {isTimeline && <ChevronRight className="w-3.5 h-3.5 ml-auto" />}
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div
+          className="mx-5 mb-3 border-t"
+          style={{ borderColor: "var(--border)" }}
+        />
 
         {/* New list input */}
         <div className="px-5 mb-3">
@@ -184,8 +225,9 @@ export default function Sidebar({
             const isEditing = editingId === list.id;
             const overdue = getOverdue(list);
             const total = (list.todos || []).length;
-            const done = (list.todos || []).filter((t) => t.done).length;
-            const progress = total > 0 ? (done / total) * 100 : 0;
+            const done = (list.archivedTodos || []).length;
+            const progress =
+              total + done > 0 ? (done / (total + done)) * 100 : 0;
             const icon = SUGGESTION_ICONS[list.title];
 
             return (
@@ -240,10 +282,7 @@ export default function Sidebar({
                       <>
                         <div className="flex items-center gap-1.5 mb-1">
                           {icon && (
-                            <span
-                              className="text-sm leading-none shrink-0"
-                              aria-hidden="true"
-                            >
+                            <span className="text-sm leading-none shrink-0">
                               {icon}
                             </span>
                           )}
@@ -265,11 +304,11 @@ export default function Sidebar({
                                 color: "#f87171",
                               }}
                             >
-                              {overdue} overdue
+                              {overdue}
                             </span>
                           )}
                         </div>
-                        {total > 0 && (
+                        {total + done > 0 && (
                           <div className="flex items-center gap-2">
                             <div
                               className="flex-1 h-1 rounded-full overflow-hidden"
@@ -288,7 +327,7 @@ export default function Sidebar({
                               className="text-[10px] shrink-0"
                               style={{ color: "var(--text-muted)" }}
                             >
-                              {done}/{total}
+                              {done}/{total + done}
                             </span>
                           </div>
                         )}
@@ -307,7 +346,7 @@ export default function Sidebar({
                       <>
                         <button
                           onClick={(e) => saveEdit(list, e)}
-                          className="p-1.5 rounded-lg transition-colors hover:bg-[var(--primary)]/20"
+                          className="p-1.5 rounded-lg hover:bg-[var(--primary)]/20 transition-colors"
                           style={{ color: "var(--primary)" }}
                           title="Save"
                         >
@@ -318,7 +357,7 @@ export default function Sidebar({
                             e.stopPropagation();
                             cancelEdit();
                           }}
-                          className="p-1.5 rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
+                          className="p-1.5 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
                           style={{ color: "var(--text-muted)" }}
                           title="Cancel"
                         >
@@ -329,7 +368,7 @@ export default function Sidebar({
                       <>
                         <button
                           onClick={(e) => startEdit(list, e)}
-                          className="p-1.5 rounded-lg transition-colors hover:bg-[var(--primary)]/10"
+                          className="p-1.5 rounded-lg hover:bg-[var(--primary)]/10 transition-colors"
                           style={{ color: "var(--text-muted)" }}
                           onMouseEnter={(e) =>
                             (e.currentTarget.style.color = "var(--primary)")
@@ -346,7 +385,7 @@ export default function Sidebar({
                             e.stopPropagation();
                             onDeleteList(list.id);
                           }}
-                          className="p-1.5 rounded-lg transition-colors hover:bg-red-500/10"
+                          className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
                           style={{ color: "var(--text-muted)" }}
                           onMouseEnter={(e) =>
                             (e.currentTarget.style.color = "#f87171")

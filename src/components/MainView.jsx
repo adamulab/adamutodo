@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import TodoItem from "./TodoItem";
+import ArchiveSection from "./ArchiveSection";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -28,7 +29,6 @@ import {
 import AdUnit from "./AdUnit";
 import ListNameInput from "./ListNameInput";
 
-// ── Confirm modal ─────────────────────────────────────────────────────────────
 function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
   if (!isOpen) return null;
   return (
@@ -100,7 +100,6 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
   );
 }
 
-// ── List card ─────────────────────────────────────────────────────────────────
 function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(l.title);
@@ -245,7 +244,7 @@ function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
       ) : (
         <>
           <h3
-            className="font-semibold text-base mb-0.5 truncate pr-2"
+            className="font-semibold text-base mb-0.5 pr-2"
             style={{ color: "var(--text)" }}
           >
             {l.title}
@@ -305,7 +304,6 @@ function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export default function MainView({
   list,
   lists,
@@ -318,6 +316,8 @@ export default function MainView({
   onUpdateTodo,
   onDeleteTodo,
   onReorderTodos,
+  onUnarchiveTodo,
+  onDeleteArchivedTodo,
   onOpenSidebar,
   onOpenSearch,
   headerControls,
@@ -327,18 +327,16 @@ export default function MainView({
   const [priority, setPriority] = useState("medium");
   const [deadline, setDeadline] = useState("");
   const [recurrence, setRecurrence] = useState("none");
-  const [inputFocused, setInputFocused] = useState(false);
   const [showRecurrence, setShowRecurrence] = useState(false);
-  // Create list card state
   const [creatingList, setCreatingList] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newTitleErr, setNewTitleErr] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, item: null });
-  // Header rename state
   const [renamingHeader, setRenamingHeader] = useState(false);
   const [headerTitle, setHeaderTitle] = useState("");
   const [headerRenameErr, setHeaderRenameErr] = useState("");
   const headerInputRef = useRef(null);
+  const taskInputRef = useRef(null);
 
   useEffect(() => {
     if (renamingHeader) {
@@ -347,16 +345,15 @@ export default function MainView({
     }
   }, [renamingHeader]);
 
-  // Global ⌘K shortcut
   useEffect(() => {
-    const handler = (e) => {
+    const h = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         onOpenSearch?.();
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
   }, [onOpenSearch]);
 
   const safeLists = Array.isArray(lists) ? lists : [];
@@ -364,9 +361,11 @@ export default function MainView({
 
   const getStats = (l) => {
     if (!l?.todos) return { total: 0, completed: 0, overdue: 0, progress: 0 };
-    const total = l.todos.length;
-    const completed = l.todos.filter((t) => t.done).length;
-    const overdue = l.todos.filter(
+    const activeTodos = l.todos || [];
+    const archivedTodos = l.archivedTodos || [];
+    const total = activeTodos.length + archivedTodos.length;
+    const completed = archivedTodos.length;
+    const overdue = activeTodos.filter(
       (t) => !t.done && t.deadline && new Date(t.deadline) < new Date(),
     ).length;
     return {
@@ -377,7 +376,6 @@ export default function MainView({
     };
   };
 
-  // Create list via ListNameInput
   const handleCreateList = async (title) => {
     setNewTitleErr("");
     const result = await onCreateList({ title });
@@ -475,7 +473,7 @@ export default function MainView({
       0,
     );
     const doneTasks = safeLists.reduce(
-      (a, l) => a + (l.todos || []).filter((t) => t.done).length,
+      (a, l) => a + (l.archivedTodos?.length || 0),
       0,
     );
 
@@ -484,48 +482,47 @@ export default function MainView({
         className="flex-1 flex flex-col h-full overflow-hidden"
         style={{ backgroundColor: "var(--background)" }}
       >
-        {/* Header */}
+        {/* ── Mobile-friendly header ── */}
         <header
-          className="shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 border-b"
+          className="shrink-0 flex items-center gap-2 px-3 sm:px-6 py-3 border-b"
           style={{
             borderColor: "var(--border)",
             backgroundColor: "var(--surface)",
             backdropFilter: "blur(12px)",
           }}
         >
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <button
-              onClick={onOpenSidebar}
-              className="md:hidden p-2 rounded-xl hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={onOpenSidebar}
+            className="md:hidden p-2 rounded-xl hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+          >
+            <Menu className="w-5 h-5" style={{ color: "var(--text-muted)" }} />
+          </button>
+
+          {/* Title */}
+          <div className="min-w-0 flex-1">
+            <h1
+              className="text-lg font-bold tracking-tight"
+              style={{ color: "var(--text)" }}
             >
-              <Menu
-                className="w-5 h-5"
+              My Lists
+            </h1>
+            {totalTasks + doneTasks > 0 && (
+              <p
+                className="text-xs hidden sm:block"
                 style={{ color: "var(--text-muted)" }}
-              />
-            </button>
-            <div className="min-w-0">
-              <h1
-                className="text-lg font-bold tracking-tight truncate"
-                style={{ color: "var(--text)" }}
               >
-                My Lists
-              </h1>
-              {totalTasks > 0 && (
-                <p
-                  className="text-xs truncate"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {doneTasks}/{totalTasks} done · {safeLists.length} list
-                  {safeLists.length !== 1 ? "s" : ""}
-                </p>
-              )}
-            </div>
+                {doneTasks}/{totalTasks + doneTasks} done · {safeLists.length}{" "}
+                list{safeLists.length !== 1 ? "s" : ""}
+              </p>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right actions — all in natural flow */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={onOpenSearch}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm transition-colors hover:bg-[var(--surface-hover)]"
+              className="p-2 rounded-xl transition-colors hover:bg-[var(--surface-hover)]"
               style={{
                 color: "var(--text-muted)",
                 border: "1px solid var(--border)",
@@ -533,7 +530,6 @@ export default function MainView({
               title="Search (⌘K)"
             >
               <Search className="w-4 h-4" />
-              <span className="hidden sm:inline text-xs">Search</span>
             </button>
             <button
               onClick={() => setCreatingList(true)}
@@ -545,14 +541,14 @@ export default function MainView({
               }}
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New List</span>
+              <span className="hidden sm:inline text-xs">New List</span>
             </button>
+            {/* Theme + User — in flow, never overlapping */}
             {headerControls}
           </div>
         </header>
 
-        {/* Ad */}
-        <div className="px-4 sm:px-6 pt-4 shrink-0">
+        <div className="px-3 sm:px-6 pt-4 shrink-0">
           <AdUnit
             slot="1234567890"
             format="horizontal"
@@ -562,7 +558,7 @@ export default function MainView({
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-5 custom-scrollbar">
           {safeLists.length === 0 && !creatingList ? (
             <div className="h-full flex flex-col items-center justify-center text-center">
               <div
@@ -611,7 +607,6 @@ export default function MainView({
                   onUpdate={onUpdateList}
                 />
               ))}
-
               {safeLists.length >= 2 && (
                 <div
                   className="rounded-2xl border flex items-center justify-center min-h-[180px]"
@@ -629,7 +624,6 @@ export default function MainView({
                   />
                 </div>
               )}
-
               {safeLists.slice(2).map((l) => (
                 <ListCard
                   key={l.id}
@@ -641,7 +635,6 @@ export default function MainView({
                 />
               ))}
 
-              {/* ── Create card — uses ListNameInput with suggestions ── */}
               {creatingList ? (
                 <div
                   className="p-5 rounded-2xl border shadow-lg"
@@ -674,14 +667,12 @@ export default function MainView({
                         setNewTitle("");
                         setNewTitleErr("");
                       }}
-                      className="p-1 rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
+                      className="p-1 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
                       style={{ color: "var(--text-muted)" }}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
-
-                  {/* ListNameInput with suggestions */}
                   <ListNameInput
                     value={newTitle}
                     onChange={(v) => {
@@ -694,7 +685,6 @@ export default function MainView({
                     placeholder="List name…"
                     autoFocus
                   />
-
                   <button
                     onClick={() => handleCreateList(newTitle)}
                     disabled={!newTitle.trim()}
@@ -742,7 +732,7 @@ export default function MainView({
             setDeleteModal({ open: false, item: null });
           }}
           title="Delete list?"
-          message={`"${deleteModal.item?.title}" and its ${deleteModal.item?.todos?.length || 0} task${deleteModal.item?.todos?.length !== 1 ? "s" : ""} will be permanently deleted.`}
+          message={`"${deleteModal.item?.title}" and all its tasks will be permanently deleted.`}
         />
       </div>
     );
@@ -750,8 +740,10 @@ export default function MainView({
 
   // ── LIST VIEW ─────────────────────────────────────────────────────────────
   const todos = list.todos || [];
-  const completedCount = todos.filter((t) => t.done).length;
-  const progress = todos.length ? (completedCount / todos.length) * 100 : 0;
+  const archivedTodos = list.archivedTodos || [];
+  const completedCount = archivedTodos.length;
+  const totalCount = todos.length + archivedTodos.length;
+  const progress = totalCount ? (completedCount / totalCount) * 100 : 0;
   const overdueCount = todos.filter(
     (t) => !t.done && t.deadline && new Date(t.deadline) < new Date(),
   ).length;
@@ -761,37 +753,35 @@ export default function MainView({
       className="flex-1 flex flex-col h-full overflow-hidden"
       style={{ backgroundColor: "var(--background)" }}
     >
-      {/* Header */}
+      {/* ── Mobile-friendly list header ── */}
       <header
-        className="shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 border-b"
+        className="shrink-0 flex items-center gap-2 px-3 sm:px-6 py-3 border-b"
         style={{
           borderColor: "var(--border)",
           backgroundColor: "var(--surface)",
           backdropFilter: "blur(12px)",
         }}
       >
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button
-            onClick={onOpenSidebar}
-            className="md:hidden p-2 rounded-xl hover:bg-[var(--surface-hover)] transition-colors shrink-0"
-          >
-            <Menu className="w-5 h-5" style={{ color: "var(--text-muted)" }} />
-          </button>
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm transition-all hover:bg-[var(--surface-hover)] shrink-0"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Lists</span>
-          </button>
-          <div
-            className="w-px h-5 shrink-0 hidden sm:block"
-            style={{ backgroundColor: "var(--border)" }}
-          />
+        <button
+          onClick={onOpenSidebar}
+          className="md:hidden p-2 rounded-xl hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+        >
+          <Menu className="w-5 h-5" style={{ color: "var(--text-muted)" }} />
+        </button>
 
+        <button
+          onClick={onBack}
+          className="p-2 rounded-xl transition-all hover:bg-[var(--surface-hover)] shrink-0"
+          style={{ color: "var(--text-muted)" }}
+          title="Back to lists"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+
+        {/* Title */}
+        <div className="flex-1 min-w-0">
           {renamingHeader ? (
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2">
               <input
                 ref={headerInputRef}
                 value={headerTitle}
@@ -848,23 +838,25 @@ export default function MainView({
               </button>
             </div>
           )}
+          {headerRenameErr && (
+            <p className="text-xs flex items-center gap-1 text-red-400 mt-0.5">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              {headerRenameErr}
+            </p>
+          )}
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+            {completedCount}/{totalCount} completed
+            {overdueCount > 0 && (
+              <span className="text-red-400 ml-2">{overdueCount} overdue</span>
+            )}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {overdueCount > 0 && (
-            <span
-              className="hidden md:inline text-xs font-medium px-2 py-1 rounded-full"
-              style={{
-                backgroundColor: "rgba(239,68,68,0.1)",
-                color: "#f87171",
-              }}
-            >
-              {overdueCount} overdue
-            </span>
-          )}
+        {/* Right: progress + search + theme/user */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="hidden sm:flex items-center gap-1.5">
             <div
-              className="w-20 h-1.5 rounded-full overflow-hidden"
+              className="w-16 h-1.5 rounded-full overflow-hidden"
               style={{ backgroundColor: "var(--border)" }}
             >
               <div
@@ -894,150 +886,152 @@ export default function MainView({
         </div>
       </header>
 
-      {/* Subtitle */}
+      {/* ── Add task input — visually dominant ── */}
       <div
-        className="px-4 sm:px-6 py-1.5"
-        style={{ backgroundColor: "var(--surface)" }}
-      >
-        {headerRenameErr && (
-          <p className="text-xs flex items-center gap-1 text-red-400 mb-0.5">
-            <AlertCircle className="w-3 h-3 shrink-0" />
-            {headerRenameErr}
-          </p>
-        )}
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {completedCount} of {todos.length} tasks completed
-        </p>
-      </div>
-
-      {/* Add todo */}
-      <div
-        className="shrink-0 px-4 sm:px-6 py-3 border-b"
+        className="shrink-0 px-3 sm:px-6 py-4 border-b"
         style={{
           borderColor: "var(--border)",
           backgroundColor: "var(--surface-80)",
         }}
       >
+        {/* Primary input — large, clearly the main interaction target */}
         <div
-          className="rounded-2xl border transition-all duration-200 overflow-hidden"
+          className="rounded-2xl border-2 transition-all duration-200 overflow-visible mb-2"
           style={{
             backgroundColor: "var(--surface)",
-            borderColor: inputFocused ? "var(--primary)" : "var(--border)",
-            boxShadow: inputFocused
-              ? "0 0 0 3px var(--primary-muted)"
-              : undefined,
+            borderColor: "var(--primary)",
+            boxShadow: "0 0 0 4px var(--primary-muted)",
           }}
         >
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") addTodo();
-            }}
-            onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
-            placeholder="Add a task…"
-            className="w-full px-4 py-3 bg-transparent text-sm outline-none"
-            style={{ color: "var(--text)" }}
-          />
-          <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
-            <div
-              className="flex items-center gap-1.5 flex-1 min-w-0 px-2.5 py-1.5 rounded-xl text-xs"
-              style={{
-                backgroundColor: "var(--background)",
-                border: "1px solid var(--border)",
+          <div className="flex items-center gap-3 px-4 py-1">
+            <Plus
+              className="w-5 h-5 shrink-0"
+              style={{ color: "var(--primary)", opacity: 0.6 }}
+            />
+            <input
+              ref={taskInputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addTodo();
               }}
-            >
-              <Calendar
-                className="w-3.5 h-3.5 shrink-0"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                type="datetime-local"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="flex-1 bg-transparent text-xs outline-none min-w-0"
-                style={{ color: "var(--text)" }}
-              />
-            </div>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border outline-none cursor-pointer ${priorityBtnClass(priority)}`}
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="urgent">Urgent</option>
-            </select>
-            <button
-              onClick={() => setShowRecurrence((v) => !v)}
-              className="p-1.5 rounded-xl transition-colors"
-              style={{
-                color:
-                  recurrence !== "none"
-                    ? "var(--primary)"
-                    : "var(--text-muted)",
-                backgroundColor:
-                  recurrence !== "none"
-                    ? "var(--primary-muted)"
-                    : "transparent",
-                border: "1px solid var(--border)",
-              }}
-              title="Set recurrence"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+              placeholder="What needs to be done? (press Enter to add)"
+              className="flex-1 py-3.5 bg-transparent text-sm outline-none font-medium"
+              style={{ color: "var(--text)" }}
+            />
             <button
               onClick={addTodo}
               disabled={!text.trim()}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 active:scale-95"
+              className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-30 active:scale-95"
               style={{
                 backgroundColor: "var(--primary)",
                 color: "var(--text-inverse)",
-                boxShadow: text.trim()
-                  ? "0 2px 8px var(--primary-20)"
-                  : undefined,
               }}
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Add</span>
+              Add
             </button>
           </div>
-          {showRecurrence && (
-            <div className="px-3 pb-3 flex items-center gap-2">
-              <RefreshCw
-                className="w-3.5 h-3.5 shrink-0"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <select
-                value={recurrence}
-                onChange={(e) => setRecurrence(e.target.value)}
-                className="flex-1 px-3 py-1.5 rounded-xl text-xs outline-none cursor-pointer"
-                style={{
-                  backgroundColor: "var(--background)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                }}
-              >
-                <option value="none">No repeat</option>
-                <option value="daily">Repeat daily</option>
-                <option value="weekly">Repeat weekly</option>
-                <option value="monthly">Repeat monthly</option>
-              </select>
-              <span
-                className="text-xs shrink-0"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {recurrence !== "none" ? "New task on completion" : "One-time"}
-              </span>
-            </div>
-          )}
         </div>
+
+        {/* Secondary options row — clearly subordinate to the input above */}
+        <div className="flex items-center gap-2 flex-wrap px-1">
+          {/* Deadline — clearly labelled, compact */}
+          <label
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl cursor-pointer flex-1 min-w-0"
+            style={{
+              backgroundColor: "var(--surface-elevated)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Calendar
+              className="w-3.5 h-3.5 shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <span
+              className="text-xs shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Due:
+            </span>
+            <input
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="flex-1 bg-transparent text-xs outline-none min-w-0"
+              style={{ color: deadline ? "var(--text)" : "var(--text-muted)" }}
+            />
+          </label>
+
+          {/* Priority */}
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border outline-none cursor-pointer ${
+              priority === "urgent"
+                ? "text-red-400 bg-red-500/10 border-red-500/20"
+                : priority === "medium"
+                  ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
+                  : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+            }`}
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="urgent">Urgent</option>
+          </select>
+
+          {/* Recurrence toggle */}
+          <button
+            onClick={() => setShowRecurrence((v) => !v)}
+            className="p-1.5 rounded-xl transition-colors"
+            style={{
+              color:
+                recurrence !== "none" ? "var(--primary)" : "var(--text-muted)",
+              backgroundColor:
+                recurrence !== "none"
+                  ? "var(--primary-muted)"
+                  : "var(--surface-elevated)",
+              border: "1px solid var(--border)",
+            }}
+            title="Repeat"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {showRecurrence && (
+          <div className="flex items-center gap-2 mt-2 px-1">
+            <RefreshCw
+              className="w-3.5 h-3.5 shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <select
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value)}
+              className="flex-1 px-3 py-1.5 rounded-xl text-xs outline-none cursor-pointer"
+              style={{
+                backgroundColor: "var(--surface-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            >
+              <option value="none">No repeat</option>
+              <option value="daily">Repeat daily</option>
+              <option value="weekly">Repeat weekly</option>
+              <option value="monthly">Repeat monthly</option>
+            </select>
+            <span
+              className="text-xs shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {recurrence !== "none" ? "New task on completion" : "One-time"}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Todo list */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 custom-scrollbar">
-        {todos.length === 0 ? (
+      {/* ── Todo list + archive ── */}
+      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-5 custom-scrollbar">
+        {todos.length === 0 && archivedTodos.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center">
             <div
               className="w-16 h-16 mb-4 rounded-full flex items-center justify-center"
@@ -1052,31 +1046,43 @@ export default function MainView({
               No tasks yet
             </p>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Type a task above and hit Enter
+              Type a task in the field above and press Enter
             </p>
           </div>
         ) : (
-          <DndContext
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={todos.map((t) => t.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2">
-                {todos.map((todo) => (
-                  <TodoItem
-                    key={todo.id}
-                    todo={todo}
-                    listId={list.id}
-                    onUpdate={onUpdateTodo}
-                    onDelete={onDeleteTodo}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <>
+            {todos.length > 0 && (
+              <DndContext
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={todos.map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {todos.map((todo) => (
+                      <TodoItem
+                        key={todo.id}
+                        todo={todo}
+                        listId={list.id}
+                        onUpdate={onUpdateTodo}
+                        onDelete={onDeleteTodo}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+
+            {/* Collapsible completed/archive section */}
+            <ArchiveSection
+              archivedTodos={archivedTodos}
+              listId={list.id}
+              onUnarchive={onUnarchiveTodo}
+              onDelete={onDeleteArchivedTodo}
+            />
+          </>
         )}
       </div>
     </div>
