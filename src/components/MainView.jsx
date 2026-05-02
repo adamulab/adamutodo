@@ -17,9 +17,11 @@ import {
   LayoutGrid,
   Search,
   RefreshCw,
+  CalendarCheck,
 } from "lucide-react";
 import TodoItem from "./TodoItem";
 import ArchiveSection from "./ArchiveSection";
+import ListNotesPanel from "./ListNotesPanel";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -29,6 +31,7 @@ import {
 import AdUnit from "./AdUnit";
 import ListNameInput from "./ListNameInput";
 
+// ── Confirm modal ─────────────────────────────────────────────────────────────
 function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
   if (!isOpen) return null;
   return (
@@ -66,7 +69,7 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium"
             style={{
               backgroundColor: "var(--surface-elevated)",
               color: "var(--text)",
@@ -100,6 +103,7 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
   );
 }
 
+// ── List card ─────────────────────────────────────────────────────────────────
 function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(l.title);
@@ -260,6 +264,16 @@ function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
         </>
       )}
 
+      {/* Notes snippet */}
+      {l.notes && (
+        <p
+          className="text-xs mb-3 line-clamp-2 leading-relaxed"
+          style={{ color: "var(--text-muted)", fontStyle: "italic" }}
+        >
+          {l.notes}
+        </p>
+      )}
+
       <div className="mt-auto">
         <div className="flex justify-between text-xs mb-1.5">
           <span style={{ color: "var(--text-muted)" }}>
@@ -304,6 +318,7 @@ function ListCard({ l, stats, onSelect, onDelete, onUpdate }) {
   );
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
 export default function MainView({
   list,
   lists,
@@ -318,6 +333,7 @@ export default function MainView({
   onReorderTodos,
   onUnarchiveTodo,
   onDeleteArchivedTodo,
+  onUpdateListNotes,
   onOpenSidebar,
   onOpenSearch,
   headerControls,
@@ -325,9 +341,10 @@ export default function MainView({
 }) {
   const [text, setText] = useState("");
   const [priority, setPriority] = useState("medium");
+  const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
   const [recurrence, setRecurrence] = useState("none");
-  const [showRecurrence, setShowRecurrence] = useState(false);
+  const [showMore, setShowMore] = useState(false); // toggles start date + recurrence row
   const [creatingList, setCreatingList] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newTitleErr, setNewTitleErr] = useState("");
@@ -336,7 +353,6 @@ export default function MainView({
   const [headerTitle, setHeaderTitle] = useState("");
   const [headerRenameErr, setHeaderRenameErr] = useState("");
   const headerInputRef = useRef(null);
-  const taskInputRef = useRef(null);
 
   useEffect(() => {
     if (renamingHeader) {
@@ -361,11 +377,11 @@ export default function MainView({
 
   const getStats = (l) => {
     if (!l?.todos) return { total: 0, completed: 0, overdue: 0, progress: 0 };
-    const activeTodos = l.todos || [];
-    const archivedTodos = l.archivedTodos || [];
-    const total = activeTodos.length + archivedTodos.length;
-    const completed = archivedTodos.length;
-    const overdue = activeTodos.filter(
+    const active = l.todos || [];
+    const archived = l.archivedTodos || [];
+    const total = active.length + archived.length;
+    const completed = archived.length;
+    const overdue = active.filter(
       (t) => !t.done && t.deadline && new Date(t.deadline) < new Date(),
     ).length;
     return {
@@ -423,13 +439,15 @@ export default function MainView({
       text: text.trim(),
       done: false,
       priority,
+      startDate: startDate || null,
       deadline: deadline || null,
       recurrence,
     });
     setText("");
+    setStartDate("");
     setDeadline("");
     setRecurrence("none");
-    setShowRecurrence(false);
+    setShowMore(false);
   };
 
   const handleDragEnd = async ({ active, over }) => {
@@ -482,7 +500,6 @@ export default function MainView({
         className="flex-1 flex flex-col h-full overflow-hidden"
         style={{ backgroundColor: "var(--background)" }}
       >
-        {/* ── Mobile-friendly header ── */}
         <header
           className="shrink-0 flex items-center gap-2 px-3 sm:px-6 py-3 border-b"
           style={{
@@ -491,15 +508,12 @@ export default function MainView({
             backdropFilter: "blur(12px)",
           }}
         >
-          {/* Hamburger — mobile only */}
           <button
             onClick={onOpenSidebar}
             className="md:hidden p-2 rounded-xl hover:bg-[var(--surface-hover)] transition-colors shrink-0"
           >
             <Menu className="w-5 h-5" style={{ color: "var(--text-muted)" }} />
           </button>
-
-          {/* Title */}
           <div className="min-w-0 flex-1">
             <h1
               className="text-lg font-bold tracking-tight"
@@ -517,8 +531,6 @@ export default function MainView({
               </p>
             )}
           </div>
-
-          {/* Right actions — all in natural flow */}
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={onOpenSearch}
@@ -543,7 +555,6 @@ export default function MainView({
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline text-xs">New List</span>
             </button>
-            {/* Theme + User — in flow, never overlapping */}
             {headerControls}
           </div>
         </header>
@@ -634,7 +645,6 @@ export default function MainView({
                   onUpdate={onUpdateList}
                 />
               ))}
-
               {creatingList ? (
                 <div
                   className="p-5 rounded-2xl border shadow-lg"
@@ -667,7 +677,7 @@ export default function MainView({
                         setNewTitle("");
                         setNewTitleErr("");
                       }}
-                      className="p-1 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
+                      className="p-1 rounded-lg hover:bg-[var(--surface-hover)]"
                       style={{ color: "var(--text-muted)" }}
                     >
                       <X className="w-3.5 h-3.5" />
@@ -688,7 +698,7 @@ export default function MainView({
                   <button
                     onClick={() => handleCreateList(newTitle)}
                     disabled={!newTitle.trim()}
-                    className="w-full mt-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-40 transition-colors"
+                    className="w-full mt-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
                     style={{
                       backgroundColor: "var(--primary)",
                       color: "var(--text-inverse)",
@@ -753,7 +763,7 @@ export default function MainView({
       className="flex-1 flex flex-col h-full overflow-hidden"
       style={{ backgroundColor: "var(--background)" }}
     >
-      {/* ── Mobile-friendly list header ── */}
+      {/* Header */}
       <header
         className="shrink-0 flex items-center gap-2 px-3 sm:px-6 py-3 border-b"
         style={{
@@ -768,7 +778,6 @@ export default function MainView({
         >
           <Menu className="w-5 h-5" style={{ color: "var(--text-muted)" }} />
         </button>
-
         <button
           onClick={onBack}
           className="p-2 rounded-xl transition-all hover:bg-[var(--surface-hover)] shrink-0"
@@ -778,7 +787,6 @@ export default function MainView({
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        {/* Title */}
         <div className="flex-1 min-w-0">
           {renamingHeader ? (
             <div className="flex items-center gap-2">
@@ -852,7 +860,6 @@ export default function MainView({
           </p>
         </div>
 
-        {/* Right: progress + search + theme/user */}
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="hidden sm:flex items-center gap-1.5">
             <div
@@ -886,7 +893,7 @@ export default function MainView({
         </div>
       </header>
 
-      {/* ── Add task input — visually dominant ── */}
+      {/* ── Add task input — clearly the primary action ── */}
       <div
         className="shrink-0 px-3 sm:px-6 py-4 border-b"
         style={{
@@ -894,9 +901,9 @@ export default function MainView({
           backgroundColor: "var(--surface-80)",
         }}
       >
-        {/* Primary input — large, clearly the main interaction target */}
+        {/* Main input — dominant visual */}
         <div
-          className="rounded-2xl border-2 transition-all duration-200 overflow-visible mb-2"
+          className="rounded-2xl border-2 mb-2 overflow-hidden"
           style={{
             backgroundColor: "var(--surface)",
             borderColor: "var(--primary)",
@@ -909,7 +916,6 @@ export default function MainView({
               style={{ color: "var(--primary)", opacity: 0.6 }}
             />
             <input
-              ref={taskInputRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -933,11 +939,11 @@ export default function MainView({
           </div>
         </div>
 
-        {/* Secondary options row — clearly subordinate to the input above */}
+        {/* Secondary options row */}
         <div className="flex items-center gap-2 flex-wrap px-1">
-          {/* Deadline — clearly labelled, compact */}
+          {/* Due date */}
           <label
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl cursor-pointer flex-1 min-w-0"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl cursor-pointer flex-1 min-w-[160px]"
             style={{
               backgroundColor: "var(--surface-elevated)",
               border: "1px solid var(--border)",
@@ -948,7 +954,7 @@ export default function MainView({
               style={{ color: "var(--text-muted)" }}
             />
             <span
-              className="text-xs shrink-0"
+              className="text-xs shrink-0 font-medium"
               style={{ color: "var(--text-muted)" }}
             >
               Due:
@@ -966,70 +972,88 @@ export default function MainView({
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border outline-none cursor-pointer ${
-              priority === "urgent"
-                ? "text-red-400 bg-red-500/10 border-red-500/20"
-                : priority === "medium"
-                  ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
-                  : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-            }`}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border outline-none cursor-pointer ${priorityBtnClass(priority)}`}
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="urgent">Urgent</option>
           </select>
 
-          {/* Recurrence toggle */}
+          {/* More options toggle */}
           <button
-            onClick={() => setShowRecurrence((v) => !v)}
-            className="p-1.5 rounded-xl transition-colors"
+            onClick={() => setShowMore((v) => !v)}
+            className="px-2.5 py-1.5 rounded-xl text-xs transition-colors"
             style={{
-              color:
-                recurrence !== "none" ? "var(--primary)" : "var(--text-muted)",
-              backgroundColor:
-                recurrence !== "none"
-                  ? "var(--primary-muted)"
-                  : "var(--surface-elevated)",
+              color: showMore ? "var(--primary)" : "var(--text-muted)",
+              backgroundColor: showMore
+                ? "var(--primary-muted)"
+                : "var(--surface-elevated)",
               border: "1px solid var(--border)",
             }}
-            title="Repeat"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            {showMore ? "Less" : "More"}
           </button>
         </div>
 
-        {showRecurrence && (
-          <div className="flex items-center gap-2 mt-2 px-1">
-            <RefreshCw
-              className="w-3.5 h-3.5 shrink-0"
-              style={{ color: "var(--text-muted)" }}
-            />
-            <select
-              value={recurrence}
-              onChange={(e) => setRecurrence(e.target.value)}
-              className="flex-1 px-3 py-1.5 rounded-xl text-xs outline-none cursor-pointer"
+        {/* More options — start date + recurrence */}
+        {showMore && (
+          <div className="flex items-center gap-2 mt-2 px-1 flex-wrap">
+            {/* Start date */}
+            <label
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl cursor-pointer flex-1 min-w-[140px]"
               style={{
                 backgroundColor: "var(--surface-elevated)",
                 border: "1px solid var(--border)",
-                color: "var(--text)",
               }}
             >
-              <option value="none">No repeat</option>
-              <option value="daily">Repeat daily</option>
-              <option value="weekly">Repeat weekly</option>
-              <option value="monthly">Repeat monthly</option>
-            </select>
-            <span
-              className="text-xs shrink-0"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {recurrence !== "none" ? "New task on completion" : "One-time"}
-            </span>
+              <CalendarCheck
+                className="w-3.5 h-3.5 shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <span
+                className="text-xs shrink-0 font-medium"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Start:
+              </span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="flex-1 bg-transparent text-xs outline-none min-w-0"
+                style={{
+                  color: startDate ? "var(--text)" : "var(--text-muted)",
+                }}
+              />
+            </label>
+
+            {/* Recurrence */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+              <RefreshCw
+                className="w-3.5 h-3.5 shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <select
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value)}
+                className="flex-1 px-2.5 py-1.5 rounded-xl text-xs outline-none cursor-pointer"
+                style={{
+                  backgroundColor: "var(--surface-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                }}
+              >
+                <option value="none">No repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
           </div>
         )}
       </div>
 
-      {/* ── Todo list + archive ── */}
+      {/* ── Todo list + archive + notes ── */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-5 custom-scrollbar">
         {todos.length === 0 && archivedTodos.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center">
@@ -1075,7 +1099,7 @@ export default function MainView({
               </DndContext>
             )}
 
-            {/* Collapsible completed/archive section */}
+            {/* Completed/archive section */}
             <ArchiveSection
               archivedTodos={archivedTodos}
               listId={list.id}
@@ -1084,6 +1108,17 @@ export default function MainView({
             />
           </>
         )}
+
+        {/*
+          ── Notes panel ──────────────────────────────────────────────────────
+          Lives here at the bottom of the scrollable area, below tasks and
+          archive. Place ListNotesPanel.jsx in src/components/.
+        */}
+        <ListNotesPanel
+          listId={list.id}
+          initialNotes={list.notes || ""}
+          onSave={onUpdateListNotes}
+        />
       </div>
     </div>
   );

@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      // "prompt" instead of "autoUpdate" — gives the app control over when
+      // the new service worker activates, preventing stale shell mid-session.
+      registerType: "prompt",
+
       includeAssets: [
         "favicon.ico",
         "favicon-16x16.png",
@@ -16,6 +19,7 @@ export default defineConfig({
         "android-chrome-512x512.png",
         "site.webmanifest",
       ],
+
       manifest: {
         name: "TaskFlow",
         short_name: "TaskFlow",
@@ -29,50 +33,6 @@ export default defineConfig({
         start_url: "/",
         id: "/",
         categories: ["productivity", "utilities"],
-        // icons: [
-        //   {
-        //     src: "/icon-72x72.png",
-        //     sizes: "72x72",
-        //     type: "image/png",
-        //   },
-        //   {
-        //     src: "/icon-96x96.png",
-        //     sizes: "96x96",
-        //     type: "image/png",
-        //   },
-        //   {
-        //     src: "/icon-128x128.png",
-        //     sizes: "128x128",
-        //     type: "image/png",
-        //   },
-        //   {
-        //     src: "/icon-144x144.png",
-        //     sizes: "144x144",
-        //     type: "image/png",
-        //   },
-        //   {
-        //     src: "/icon-152x152.png",
-        //     sizes: "152x152",
-        //     type: "image/png",
-        //   },
-        //   {
-        //     src: "/icon-192x192.png",
-        //     sizes: "192x192",
-        //     type: "image/png",
-        //     purpose: "any maskable",
-        //   },
-        //   {
-        //     src: "/icon-384x384.png",
-        //     sizes: "384x384",
-        //     type: "image/png",
-        //   },
-        //   {
-        //     src: "/icon-512x512.png",
-        //     sizes: "512x512",
-        //     type: "image/png",
-        //     purpose: "any maskable",
-        //   },
-        // ],
         screenshots: [
           {
             src: "/screenshot1.png",
@@ -101,9 +61,43 @@ export default defineConfig({
         related_applications: [],
         prefer_related_applications: false,
       },
+
       workbox: {
+        // Only pre-cache static build assets
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+
+        // Ensure the service worker takes control immediately on install
+        // without waiting for all existing tabs to close.
+        skipWaiting: false, // we handle this manually via the update prompt
+        clientsClaim: true,
+
         runtimeCaching: [
+          // ── CRITICAL: Firestore real-time connections must NEVER be cached ──
+          // Firestore WebChannel uses long-lived streaming HTTP requests to
+          // https://firestore.googleapis.com. Caching these breaks onSnapshot
+          // in installed PWAs, causing the timeline and todo list to go stale.
+          {
+            urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
+            handler: "NetworkOnly",
+          },
+
+          // ── Firebase Auth token refresh must also bypass cache ──
+          {
+            urlPattern: /^https:\/\/identitytoolkit\.googleapis\.com\/.*/i,
+            handler: "NetworkOnly",
+          },
+          {
+            urlPattern: /^https:\/\/securetoken\.googleapis\.com\/.*/i,
+            handler: "NetworkOnly",
+          },
+
+          // ── Firebase Storage (if used in future) ──
+          {
+            urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*/i,
+            handler: "NetworkOnly",
+          },
+
+          // ── Google Fonts — safe to cache aggressively ──
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",
@@ -111,20 +105,43 @@ export default defineConfig({
               cacheName: "google-fonts-cache",
               expiration: {
                 maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-webfonts",
+              expiration: {
+                maxEntries: 20,
                 maxAgeSeconds: 60 * 60 * 24 * 365,
               },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+
+          // ── App navigation — NetworkFirst so updates reach users promptly ──
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "app-shell",
+              networkTimeoutSeconds: 5,
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],
       },
+
       devOptions: {
         enabled: true,
       },
     }),
   ],
+
   base: "/",
   build: {
     outDir: "dist",

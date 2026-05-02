@@ -12,6 +12,7 @@ import MainView from "./components/MainView";
 import TimelineView from "./components/TimelineView";
 import Sidebar from "./components/SideBar";
 import SearchOverlay from "./components/SearchOverlay";
+import PWAUpdatePrompt from "./components/PWAUpdatePrompt";
 import Footer from "./components/Footer";
 import LoginScreen from "./components/LoginScreen";
 import UserMenu from "./components/UserMenu";
@@ -23,7 +24,6 @@ const ADSENSE_ID = import.meta.env.VITE_ADSENSE_ID || "ca-pub-7316645635680327";
 
 function AppContent() {
   const { user, loading: authLoading, authChecked } = useAuth();
-  // activeListId: string = list id, "timeline" = timeline view, null = grid
   const [activeListId, setActiveListId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -38,6 +38,7 @@ function AppContent() {
     syncStatus,
     saveList,
     deleteList,
+    updateListNotes,
     saveTodo,
     updateTodo,
     deleteTodo,
@@ -66,7 +67,7 @@ function AppContent() {
       ? lists.find((l) => l.id === activeListId)
       : null;
 
-  // ── handlers with notifications ───────────────────────────────────────────
+  // ── handlers ──────────────────────────────────────────────────────────────
 
   const handleCreateList = async (data) => {
     const result = await saveList(data);
@@ -87,6 +88,11 @@ function AppContent() {
     await deleteList(listId);
     if (activeListId === listId) setActiveListId(null);
     info(`"${list?.title ?? "List"}" deleted`);
+  };
+
+  const handleUpdateListNotes = async (listId, notes) => {
+    await updateListNotes(listId, notes);
+    // No toast — the panel shows its own "Saved" indicator
   };
 
   const handleCreateTodo = async (listId, todoData) => {
@@ -145,6 +151,9 @@ function AppContent() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--text)]">
+      {/* PWA update banner — sits above everything */}
+      <PWAUpdatePrompt />
+
       {/* Sync badge */}
       {showSyncBadge && (
         <div
@@ -212,6 +221,7 @@ function AppContent() {
             onReorderTodos={reorderTodos}
             onUnarchiveTodo={handleUnarchive}
             onDeleteArchivedTodo={handleDeleteArchived}
+            onUpdateListNotes={handleUpdateListNotes}
             onOpenSidebar={() => setIsSidebarOpen(true)}
             onOpenSearch={() => setIsSearchOpen(true)}
             headerControls={headerControls}

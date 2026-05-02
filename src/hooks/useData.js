@@ -209,10 +209,10 @@ export function useData(userId) {
               });
               pendingWrites.current.delete(fullList.id);
               writeFailCount.current = 0;
-              const q = getQueue(userId).filter(
+              const q2 = getQueue(userId).filter(
                 (item) => item.data?.id !== fullList.id,
               );
-              setQueue(userId, q);
+              setQueue(userId, q2);
               setSyncStatus("synced");
             } catch {
               writeFailCount.current += 1;
@@ -245,6 +245,7 @@ export function useData(userId) {
             id: generateId(),
             todos: [],
             archivedTodos: [],
+            notes: "",
             createdAt: new Date().toISOString(),
           }
         : { ...listData, title: trimmedTitle };
@@ -274,6 +275,19 @@ export function useData(userId) {
     [userId],
   );
 
+  /**
+   * Save plain-text notes for a list.
+   * Debounced writes are handled at the call site (ListNotesPanel).
+   */
+  const updateListNotes = useCallback(
+    async (listId, notes) => {
+      const list = listsRef.current.find((l) => l.id === listId);
+      if (!list) return;
+      await persistList({ ...list, notes });
+    },
+    [persistList],
+  );
+
   const saveTodo = useCallback(
     async (listId, todoData) => {
       const list = listsRef.current.find((l) => l.id === listId);
@@ -296,7 +310,6 @@ export function useData(userId) {
 
       const todos = list.todos || [];
       const archivedTodos = list.archivedTodos || [];
-
       let updatedTodos = todos.map((t) =>
         t.id === todoId ? { ...t, ...updates } : t,
       );
@@ -308,26 +321,25 @@ export function useData(userId) {
           doneTodo?.recurrence && doneTodo.recurrence !== "none";
 
         if (isRecurring) {
-          // Recurring: create next occurrence, keep done task visible briefly then archive
           const nd = nextDeadline(doneTodo);
           if (nd) {
-            const nextTodo = {
-              ...doneTodo,
-              id: generateId(),
-              done: false,
-              deadline: nd,
-              createdAt: new Date().toISOString(),
-            };
-            updatedTodos = [...updatedTodos, nextTodo];
+            updatedTodos = [
+              ...updatedTodos,
+              {
+                ...doneTodo,
+                id: generateId(),
+                done: false,
+                deadline: nd,
+                createdAt: new Date().toISOString(),
+              },
+            ];
           }
-          // Archive the completed recurring instance too
           updatedArchived = [
             { ...doneTodo, archivedAt: new Date().toISOString() },
             ...updatedArchived,
           ];
           updatedTodos = updatedTodos.filter((t) => t.id !== todoId);
         } else {
-          // Non-recurring: move immediately to archive
           updatedArchived = [
             { ...doneTodo, archivedAt: new Date().toISOString() },
             ...updatedArchived,
@@ -345,29 +357,23 @@ export function useData(userId) {
     [persistList],
   );
 
-  /**
-   * Move an archived task back to the active todos list.
-   */
   const unarchiveTodo = useCallback(
     async (listId, todoId) => {
       const list = listsRef.current.find((l) => l.id === listId);
       if (!list) return;
-      const archivedTodos = list.archivedTodos || [];
-      const todo = archivedTodos.find((t) => t.id === todoId);
+      const archived = list.archivedTodos || [];
+      const todo = archived.find((t) => t.id === todoId);
       if (!todo) return;
       const { archivedAt, ...restored } = todo;
       await persistList({
         ...list,
         todos: [{ ...restored, done: false }, ...(list.todos || [])],
-        archivedTodos: archivedTodos.filter((t) => t.id !== todoId),
+        archivedTodos: archived.filter((t) => t.id !== todoId),
       });
     },
     [persistList],
   );
 
-  /**
-   * Permanently delete an archived task.
-   */
   const deleteArchivedTodo = useCallback(
     async (listId, todoId) => {
       const list = listsRef.current.find((l) => l.id === listId);
@@ -410,6 +416,7 @@ export function useData(userId) {
     syncStatus,
     saveList,
     deleteList,
+    updateListNotes,
     saveTodo,
     updateTodo,
     deleteTodo,

@@ -13,6 +13,8 @@ import {
   Save,
   Calendar,
   RefreshCw,
+  CalendarCheck,
+  CalendarPlus,
 } from "lucide-react";
 
 const PRIORITY = {
@@ -29,12 +31,31 @@ const PRIORITY = {
     style: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   },
 };
+
 const RECURRENCE_LABELS = {
-  none: "",
   daily: "Daily",
   weekly: "Weekly",
   monthly: "Monthly",
 };
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
   const [timeLeft, setTimeLeft] = useState("");
@@ -43,6 +64,9 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
   const [editPriority, setEditPriority] = useState(todo.priority || "medium");
+  const [editStartDate, setEditStartDate] = useState(
+    todo.startDate ? new Date(todo.startDate).toISOString().slice(0, 10) : "",
+  );
   const [editDeadline, setEditDeadline] = useState(
     todo.deadline ? new Date(todo.deadline).toISOString().slice(0, 16) : "",
   );
@@ -69,6 +93,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     if (isEditing) textRef.current?.focus();
   }, [isEditing]);
 
+  // Countdown timer
   useEffect(() => {
     if (!todo.deadline) {
       setTimeLeft("");
@@ -99,6 +124,9 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     e.stopPropagation();
     setEditText(todo.text);
     setEditPriority(todo.priority || "medium");
+    setEditStartDate(
+      todo.startDate ? new Date(todo.startDate).toISOString().slice(0, 10) : "",
+    );
     setEditDeadline(
       todo.deadline ? new Date(todo.deadline).toISOString().slice(0, 16) : "",
     );
@@ -113,29 +141,12 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     await onUpdate(listId, todo.id, {
       text: editText.trim(),
       priority: editPriority,
+      startDate: editStartDate || null,
       deadline: editDeadline || null,
       recurrence: editRecurrence,
     });
     setIsEditing(false);
   };
-
-  const fmtDate = (s) =>
-    s
-      ? new Date(s).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })
-      : null;
-  const fmtDeadline = (s) =>
-    s
-      ? new Date(s).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : null;
 
   const p = PRIORITY[todo.priority] || PRIORITY.low;
   const hasRecurrence = todo.recurrence && todo.recurrence !== "none";
@@ -145,14 +156,15 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     return (
       <div
         ref={setNodeRef}
-        style={{
-          ...style,
-          backgroundColor: "var(--surface)",
-          border: "1px solid var(--primary)",
-          boxShadow: "0 0 0 3px var(--primary-muted)",
-        }}
+        style={style}
         className="rounded-2xl p-4 space-y-3 shadow-lg"
+        // style={{
+        //   backgroundColor: "var(--surface)",
+        //   border: "1px solid var(--primary)",
+        //   boxShadow: "0 0 0 3px var(--primary-muted)",
+        // }}
       >
+        {/* Task text */}
         <textarea
           ref={textRef}
           value={editText}
@@ -173,25 +185,91 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
           }}
           placeholder="Task description…"
         />
-        <div
-          className="flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{
-            backgroundColor: "var(--background)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <Calendar
-            className="w-3.5 h-3.5 shrink-0"
-            style={{ color: "var(--text-muted)" }}
-          />
-          <input
-            type="datetime-local"
-            value={editDeadline}
-            onChange={(e) => setEditDeadline(e.target.value)}
-            className="flex-1 text-xs outline-none bg-transparent"
-            style={{ color: "var(--text)" }}
-          />
+
+        {/* Date fields — three in a column for clarity */}
+        <div className="space-y-2">
+          {/* Created date — read-only, just for reference */}
+          {todo.createdAt && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
+              style={{
+                backgroundColor: "var(--surface-elevated)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <CalendarPlus
+                className="w-3.5 h-3.5 shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <span style={{ color: "var(--text-muted)" }}>Created:</span>
+              <span style={{ color: "var(--text)" }}>
+                {fmtDate(todo.createdAt)}
+              </span>
+              <span
+                className="ml-auto text-[10px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                read-only
+              </span>
+            </div>
+          )}
+
+          {/* Start date */}
+          <label
+            className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer"
+            style={{
+              backgroundColor: "var(--background)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <CalendarCheck
+              className="w-3.5 h-3.5 shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <span
+              className="text-xs shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Start:
+            </span>
+            <input
+              type="date"
+              value={editStartDate}
+              onChange={(e) => setEditStartDate(e.target.value)}
+              className="flex-1 bg-transparent text-xs outline-none"
+              style={{ color: "var(--text)" }}
+            />
+          </label>
+
+          {/* Due date + time */}
+          <label
+            className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer"
+            style={{
+              backgroundColor: "var(--background)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Calendar
+              className="w-3.5 h-3.5 shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <span
+              className="text-xs shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Due:
+            </span>
+            <input
+              type="datetime-local"
+              value={editDeadline}
+              onChange={(e) => setEditDeadline(e.target.value)}
+              className="flex-1 bg-transparent text-xs outline-none"
+              style={{ color: "var(--text)" }}
+            />
+          </label>
         </div>
+
+        {/* Priority + Recurrence */}
         <div className="flex gap-2 flex-wrap">
           <select
             value={editPriority}
@@ -218,6 +296,8 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
             <option value="monthly">Monthly</option>
           </select>
         </div>
+
+        {/* Actions */}
         <div className="flex gap-2 justify-end">
           <button
             onClick={cancelEdit}
@@ -249,7 +329,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
     <>
       <div
         ref={setNodeRef}
-        style={style}
+        // style={style}
         className={`group flex items-start gap-3 px-4 py-3 rounded-2xl border transition-all duration-200 ${
           isDragging
             ? "opacity-50 scale-[1.02] shadow-2xl"
@@ -278,7 +358,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
           />
         </div>
 
-        {/* Checkbox — marks done → triggers auto-archive in useData */}
+        {/* Checkbox — marks done → auto-archives in useData */}
         <button
           onClick={() => onUpdate(listId, todo.id, { done: true })}
           className={`flex-shrink-0 w-5 h-5 rounded-full border-2 transition-all duration-300 flex items-center justify-center mt-0.5 ${
@@ -287,12 +367,12 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
               : "border-[var(--text-muted)] hover:border-[var(--primary)] hover:bg-[var(--primary-muted)]"
           }`}
           title="Mark complete"
-        ></button>
+        />
 
-        {/* Content — fully visible, wraps across lines */}
+        {/* Content */}
         <div className="flex-1 min-w-0">
+          {/* Task text — always fully visible, wraps */}
           <div className="flex items-start gap-2 flex-wrap">
-            {/* Task text — NO truncate, always fully visible */}
             <p
               className="text-sm font-medium leading-snug flex-1"
               style={{
@@ -302,7 +382,6 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
             >
               {todo.text}
             </p>
-            {/* Recurrence badge */}
             {hasRecurrence && (
               <span
                 className="flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 mt-0.5"
@@ -316,37 +395,9 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
                 {RECURRENCE_LABELS[todo.recurrence]}
               </span>
             )}
-          </div>
-
-          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            {todo.createdAt && (
-              <span
-                className="text-[11px]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {fmtDate(todo.createdAt)}
-              </span>
-            )}
-            {todo.deadline && (
-              <span
-                className={`flex items-center gap-1 text-[11px] ${isOverdue ? "text-red-400" : ""}`}
-                style={!isOverdue ? { color: "var(--text-muted)" } : {}}
-              >
-                <Clock className="w-3 h-3" />
-                Due {fmtDeadline(todo.deadline)}
-              </span>
-            )}
-            {todo.deadline && timeLeft && (
-              <span
-                className={`flex items-center gap-1 text-[11px] font-medium ${isOverdue ? "text-red-400" : "text-amber-400"}`}
-              >
-                <Hourglass className="w-3 h-3" />
-                {timeLeft}
-              </span>
-            )}
             {isOverdue && (
               <span
-                className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                className="flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 mt-0.5"
                 style={{
                   backgroundColor: "rgba(239,68,68,0.15)",
                   color: "#f87171",
@@ -357,9 +408,52 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
               </span>
             )}
           </div>
+
+          {/* Date row — created / start / due */}
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+            {/* Created */}
+            {todo.createdAt && (
+              <span
+                className="flex items-center gap-1 text-[11px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <CalendarPlus className="w-3 h-3 shrink-0" />
+                Created {fmtDate(todo.createdAt)}
+              </span>
+            )}
+            {/* Start date */}
+            {todo.startDate && (
+              <span
+                className="flex items-center gap-1 text-[11px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <CalendarCheck className="w-3 h-3 shrink-0" />
+                Starts {fmtDate(todo.startDate)}
+              </span>
+            )}
+            {/* Due date */}
+            {todo.deadline && (
+              <span
+                className={`flex items-center gap-1 text-[11px] ${isOverdue ? "text-red-400" : ""}`}
+                style={!isOverdue ? { color: "var(--text-muted)" } : {}}
+              >
+                <Clock className="w-3 h-3 shrink-0" />
+                Due {fmtDateTime(todo.deadline)}
+              </span>
+            )}
+            {/* Countdown */}
+            {todo.deadline && timeLeft && (
+              <span
+                className={`flex items-center gap-1 text-[11px] font-medium ${isOverdue ? "text-red-400" : "text-amber-400"}`}
+              >
+                <Hourglass className="w-3 h-3 shrink-0" />
+                {timeLeft}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Priority */}
+        {/* Priority badge */}
         <span
           className={`text-[11px] font-semibold px-2 py-1 rounded-lg border shrink-0 mt-0.5 ${p.style}`}
         >
@@ -400,6 +494,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
         </div>
       </div>
 
+      {/* Delete confirm modal */}
       {showDelete && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4"
@@ -432,6 +527,7 @@ export default function TodoItem({ todo, listId, onUpdate, onDelete }) {
             >
               "<span style={{ color: "var(--text)" }}>{todo.text}</span>" will
               be permanently removed.
+              {hasRecurrence && " The recurring schedule will also be removed."}
             </p>
             <div className="flex gap-2">
               <button
