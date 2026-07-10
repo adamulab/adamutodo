@@ -1,8 +1,23 @@
-// Firebase is entirely optional. Arc works fully offline out of the box
-// (local storage only). If you want cross-device sync, add a .env with
-// VITE_FIREBASE_* values (see .env.example) — everything below will then
-// light up automatically. No config? No problem: firebaseEnabled is false
-// and the app quietly stays in local-only "guest" mode.
+// Firebase is optional. If no VITE_FIREBASE_* variables are present,
+// the app runs entirely in local-only mode.
+
+import { initializeApp } from "firebase/app";
+
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  getFirestore,
+  doc,
+} from "firebase/firestore";
+
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,35 +30,27 @@ const firebaseConfig = {
 
 export const firebaseEnabled = Boolean(firebaseConfig.apiKey);
 
-let app, auth, db, googleProvider;
+let app = null;
+let auth = null;
+let db = null;
+let googleProvider = null;
+
 let signInWithGoogle = async () => {
-  throw new Error("Sign-in isn't configured. Arc is running in local-only mode.");
+  throw new Error(
+    "Sign-in isn't configured. Arc is running in local-only mode.",
+  );
 };
+
 let logoutUser = async () => {};
+
 let onAuthChange = (cb) => {
   cb(null);
   return () => {};
 };
+
 let getUserDocRef = () => null;
 
 if (firebaseEnabled) {
-  // Dynamic-friendly static imports are fine here since this whole module
-  // only runs its side effects when a config is actually present.
-  const { initializeApp } = await import("firebase/app");
-  const {
-    initializeFirestore,
-    persistentLocalCache,
-    persistentMultipleTabManager,
-    doc,
-  } = await import("firebase/firestore");
-  const {
-    getAuth,
-    GoogleAuthProvider,
-    signInWithPopup,
-    signOut,
-    onAuthStateChanged,
-  } = await import("firebase/auth");
-
   app = initializeApp(firebaseConfig);
 
   try {
@@ -52,8 +59,12 @@ if (firebaseEnabled) {
         tabManager: persistentMultipleTabManager(),
       }),
     });
-  } catch {
-    const { getFirestore } = await import("firebase/firestore");
+  } catch (error) {
+    console.warn(
+      "Firestore persistence could not be enabled. Falling back:",
+      error,
+    );
+
     db = getFirestore(app);
   }
 
@@ -61,9 +72,21 @@ if (firebaseEnabled) {
   googleProvider = new GoogleAuthProvider();
 
   signInWithGoogle = () => signInWithPopup(auth, googleProvider);
+
   logoutUser = () => signOut(auth);
+
   onAuthChange = (cb) => onAuthStateChanged(auth, cb);
+
   getUserDocRef = (userId) => doc(db, "users", userId, "appData", "state");
 }
 
-export { auth, db, googleProvider, signInWithGoogle, logoutUser, onAuthChange, getUserDocRef };
+export {
+  app,
+  auth,
+  db,
+  googleProvider,
+  signInWithGoogle,
+  logoutUser,
+  onAuthChange,
+  getUserDocRef,
+};
