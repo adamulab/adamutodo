@@ -6,8 +6,6 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // "prompt" instead of "autoUpdate" — gives the app control over when
-      // the new service worker activates, preventing stale shell mid-session.
       registerType: "prompt",
 
       includeAssets: [
@@ -21,11 +19,12 @@ export default defineConfig({
       ],
 
       manifest: {
-        name: "TaskFlow",
-        short_name: "TaskFlow",
-        description: "Professional Todo App by AdamuCreates",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
+        name: "Arc — Daily Focus",
+        short_name: "Arc",
+        description:
+          "A calm, focused daily planner. Plan today, track focus areas, see your week.",
+        theme_color: "#1C1730",
+        background_color: "#1C1730",
         display: "standalone",
         display_override: ["standalone", "fullscreen"],
         orientation: "portrait",
@@ -33,29 +32,12 @@ export default defineConfig({
         start_url: "/",
         id: "/",
         categories: ["productivity", "utilities"],
-        screenshots: [
-          {
-            src: "/screenshot1.png",
-            sizes: "1280x720",
-            type: "image/png",
-            form_factor: "wide",
-            label: "TaskFlow Dashboard",
-          },
-          {
-            src: "/screenshot2.png",
-            sizes: "750x1334",
-            type: "image/png",
-            form_factor: "narrow",
-            label: "TaskFlow Mobile",
-          },
-        ],
         shortcuts: [
           {
-            name: "New List",
-            short_name: "New List",
-            description: "Create a new todo list",
-            url: "/?action=new-list",
-            icons: [{ src: "/icon-96x96.png", sizes: "96x96" }],
+            name: "Today",
+            short_name: "Today",
+            description: "Jump straight to today's plan",
+            url: "/?view=today",
           },
         ],
         related_applications: [],
@@ -63,25 +45,15 @@ export default defineConfig({
       },
 
       workbox: {
-        // Only pre-cache static build assets
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-
-        // Ensure the service worker takes control immediately on install
-        // without waiting for all existing tabs to close.
-        skipWaiting: false, // we handle this manually via the update prompt
+        skipWaiting: false,
         clientsClaim: true,
 
         runtimeCaching: [
-          // ── CRITICAL: Firestore real-time connections must NEVER be cached ──
-          // Firestore WebChannel uses long-lived streaming HTTP requests to
-          // https://firestore.googleapis.com. Caching these breaks onSnapshot
-          // in installed PWAs, causing the timeline and todo list to go stale.
           {
             urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
             handler: "NetworkOnly",
           },
-
-          // ── Firebase Auth token refresh must also bypass cache ──
           {
             urlPattern: /^https:\/\/identitytoolkit\.googleapis\.com\/.*/i,
             handler: "NetworkOnly",
@@ -90,23 +62,16 @@ export default defineConfig({
             urlPattern: /^https:\/\/securetoken\.googleapis\.com\/.*/i,
             handler: "NetworkOnly",
           },
-
-          // ── Firebase Storage (if used in future) ──
           {
             urlPattern: /^https:\/\/firebasestorage\.googleapis\.com\/.*/i,
             handler: "NetworkOnly",
           },
-
-          // ── Google Fonts — safe to cache aggressively ──
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",
             options: {
               cacheName: "google-fonts-cache",
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
@@ -115,15 +80,10 @@ export default defineConfig({
             handler: "CacheFirst",
             options: {
               cacheName: "google-fonts-webfonts",
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
-              },
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-
-          // ── App navigation — NetworkFirst so updates reach users promptly ──
           {
             urlPattern: ({ request }) => request.mode === "navigate",
             handler: "NetworkFirst",
@@ -136,9 +96,7 @@ export default defineConfig({
         ],
       },
 
-      devOptions: {
-        enabled: true,
-      },
+      devOptions: { enabled: true },
     }),
   ],
 

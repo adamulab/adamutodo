@@ -1,68 +1,103 @@
 import { useState, useRef, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { User, LogOut, Cloud, CloudOff, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { LogOut, User, ChevronDown } from "lucide-react";
+import { useToast } from "../context/ToastContext";
 
-export default function UserMenu() {
-  const { user, logout } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef(null);
+export default function UserMenu({ syncStatus }) {
+  const { user, login, logout, syncAvailable } = useAuth();
+  const { notify } = useToast();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleLogout = async () => {
-    setIsOpen(false);
-    await logout();
+  const handleLogin = async () => {
+    try {
+      await login();
+      notify("Signed in — your plan will now sync across devices.", { type: "success" });
+    } catch (err) {
+      notify(err.message || "Couldn't sign in.", { type: "error" });
+    }
+    setOpen(false);
   };
 
-  if (!user) return null;
+  const handleLogout = async () => {
+    await logout();
+    notify("Signed out. You're back to local-only mode.");
+    setOpen(false);
+  };
 
   return (
-    <div ref={menuRef} className="relative">
+    <div className="relative" ref={ref}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-full pl-1 pr-2.5 py-1 hover:bg-surface-hover transition-colors"
+        aria-haspopup="true"
+        aria-expanded={open}
       >
-        <img
-          src={user.photoURL}
-          alt={user.displayName}
-          className="w-8 h-8 rounded-full border-2 border-[var(--border)]"
-        />
-        <span className="hidden sm:block text-sm font-medium text-[var(--text)] max-w-[120px] truncate">
-          {user.displayName}
+        {user?.photoURL ? (
+          <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full" referrerPolicy="no-referrer" />
+        ) : (
+          <span
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            <User size={14} />
+          </span>
+        )}
+        <span className="text-xs font-medium text-ink-muted hidden sm:inline max-w-[100px] truncate">
+          {user ? user.displayName?.split(" ")[0] : "Guest"}
         </span>
-        <ChevronDown
-          className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${isOpen ? "rotate-180" : ""}`}
-        />
+        <ChevronDown size={13} className="text-ink-faint hidden sm:inline" />
       </button>
 
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-56 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-xl z-50 py-2">
-          <div className="px-4 py-3 border-b border-[var(--border)]">
-            <p className="text-sm font-medium text-[var(--text)]">
-              {user.displayName}
-            </p>
-            <p className="text-xs text-[var(--text-muted)] truncate">
-              {user.email}
-            </p>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-64 card rounded-xl shadow-raised p-3 z-40"
           >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
-        </div>
-      )}
+            <div className="flex items-center gap-2 px-1 pb-2 mb-2 border-b border-line text-xs">
+              {syncStatus === "synced" && user ? (
+                <Cloud size={13} style={{ color: "var(--teal)" }} />
+              ) : (
+                <CloudOff size={13} className="text-ink-faint" />
+              )}
+              <span className="text-ink-muted">
+                {user ? "Synced to your account" : "Local-only — nothing leaves this device"}
+              </span>
+            </div>
+
+            {user ? (
+              <>
+                <p className="text-sm font-medium px-1 mb-0.5 truncate">{user.displayName}</p>
+                <p className="text-xs text-ink-faint px-1 mb-3 truncate">{user.email}</p>
+                <button onClick={handleLogout} className="btn-ghost w-full justify-start !px-2 text-sm">
+                  <LogOut size={15} /> Sign out
+                </button>
+              </>
+            ) : syncAvailable ? (
+              <button onClick={handleLogin} className="btn-accent w-full !py-2 text-sm">
+                Sign in to sync
+              </button>
+            ) : (
+              <p className="text-xs text-ink-faint px-1 leading-relaxed">
+                Cloud sync isn't configured for this deployment. Your plan is saved on this device only.
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

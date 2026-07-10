@@ -1,19 +1,8 @@
-import { initializeApp } from "firebase/app";
-import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-  persistentSingleTabManager,
-  collection,
-  doc,
-} from "firebase/firestore";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-} from "firebase/auth";
+// Firebase is entirely optional. Arc works fully offline out of the box
+// (local storage only). If you want cross-device sync, add a .env with
+// VITE_FIREBASE_* values (see .env.example) — everything below will then
+// light up automatically. No config? No problem: firebaseEnabled is false
+// and the app quietly stays in local-only "guest" mode.
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -24,48 +13,57 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-if (!firebaseConfig.apiKey) {
-  console.error("Firebase API Key is missing! Check your .env file");
-}
+export const firebaseEnabled = Boolean(firebaseConfig.apiKey);
 
-const app = initializeApp(firebaseConfig);
+let app, auth, db, googleProvider;
+let signInWithGoogle = async () => {
+  throw new Error("Sign-in isn't configured. Arc is running in local-only mode.");
+};
+let logoutUser = async () => {};
+let onAuthChange = (cb) => {
+  cb(null);
+  return () => {};
+};
+let getUserDocRef = () => null;
 
-// Try multi-tab persistence first (requires Blaze plan).
-// Fall back to single-tab persistence on Spark plan or unsupported browsers.
-let db;
-try {
-  db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager(),
-    }),
-  });
-} catch {
+if (firebaseEnabled) {
+  // Dynamic-friendly static imports are fine here since this whole module
+  // only runs its side effects when a config is actually present.
+  const { initializeApp } = await import("firebase/app");
+  const {
+    initializeFirestore,
+    persistentLocalCache,
+    persistentMultipleTabManager,
+    doc,
+  } = await import("firebase/firestore");
+  const {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    onAuthStateChanged,
+  } = await import("firebase/auth");
+
+  app = initializeApp(firebaseConfig);
+
   try {
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({
-        tabManager: persistentSingleTabManager(),
+        tabManager: persistentMultipleTabManager(),
       }),
     });
   } catch {
-    // Last resort: no persistence (memory only)
     const { getFirestore } = await import("firebase/firestore");
     db = getFirestore(app);
   }
+
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+
+  signInWithGoogle = () => signInWithPopup(auth, googleProvider);
+  logoutUser = () => signOut(auth);
+  onAuthChange = (cb) => onAuthStateChanged(auth, cb);
+  getUserDocRef = (userId) => doc(db, "users", userId, "appData", "state");
 }
 
-export { db };
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-
-// Auth helpers
-export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
-export const signInUser = signInWithGoogle;
-export const logoutUser = () => signOut(auth);
-export const signOutUser = logoutUser;
-export const onAuthChange = (cb) => onAuthStateChanged(auth, cb);
-
-// Firestore ref helpers
-export const getUserRef = (userId) => doc(db, "users", userId);
-export const getListsRef = (userId) => collection(db, "users", userId, "lists");
-export const getListRef = (userId, listId) =>
-  doc(db, "users", userId, "lists", listId);
+export { auth, db, googleProvider, signInWithGoogle, logoutUser, onAuthChange, getUserDocRef };

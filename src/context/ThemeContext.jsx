@@ -4,12 +4,9 @@ const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    // Check localStorage first
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("theme");
+      const stored = localStorage.getItem("arc-theme");
       if (stored) return stored;
-
-      // Check system preference
       if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
         return "dark";
       }
@@ -19,63 +16,32 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     const root = window.document.documentElement;
-
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-
-    localStorage.setItem("theme", theme);
+    root.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("arc-theme", theme);
   }, [theme]);
 
-  // Listen for system theme changes
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = (e) => {
-      // Only auto-switch if user hasn't manually set preference
-      if (!localStorage.getItem("theme")) {
+      if (!localStorage.getItem("arc-theme")) {
         setTheme(e.matches ? "dark" : "light");
       }
     };
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
   }, []);
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
-
-  const setLight = () => setTheme("light");
-  const setDark = () => setTheme("dark");
-  const setSystem = () => {
-    localStorage.removeItem("theme");
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    setTheme(prefersDark ? "dark" : "light");
-  };
+  const toggleTheme = () => setTheme((prev) => (prev === "light" ? "dark" : "light"));
 
   return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        toggleTheme,
-        setLight,
-        setDark,
-        setSystem,
-        isDark: theme === "dark",
-      }}
-    >
+    <ThemeContext.Provider value={{ theme, toggleTheme, isDark: theme === "dark" }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
 export const useTheme = () => {
-  const context = useContext(ThemeContext);
-  if (!context) throw new Error("useTheme must be used within ThemeProvider");
-  return context;
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
+  return ctx;
 };
