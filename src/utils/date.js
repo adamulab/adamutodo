@@ -74,3 +74,18 @@ export function currentTimeBlock(hour = new Date().getHours()) {
   if (hour < 22) return "evening";
   return "anytime";
 }
+
+// After ~6pm we nudge people toward reflecting + planning tomorrow.
+export function isEveningNow(hour = new Date().getHours()) {
+  return hour >= 18 || hour < 4;
+}
+
+// Last N days (including today), oldest first — for trend charts.
+export function lastNDays(n, anchorKey = todayKey()) {
+  return Array.from({ length: n }, (_, i) => addDays(anchorKey, i - (n - 1)));
+}
+
+export function shortWeekday(dateKey) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "narrow" });
+}

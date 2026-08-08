@@ -5,7 +5,7 @@ const ThemeContext = createContext();
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("arc-theme");
+      const stored = localStorage.getItem("dawn-theme");
       if (stored) return stored;
       if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
         return "dark";
@@ -17,13 +17,13 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("arc-theme", theme);
+    localStorage.setItem("dawn-theme", theme);
   }, [theme]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = (e) => {
-      if (!localStorage.getItem("arc-theme")) {
+      if (!localStorage.getItem("dawn-theme")) {
         setTheme(e.matches ? "dark" : "light");
       }
     };

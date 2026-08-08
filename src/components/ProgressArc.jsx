@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 
-// Arc's signature element: a sunrise-style arc that fills as the day's
-// tasks get done, with a small sun marker travelling along it.
 export default function ProgressArc({ percent = 0, size = 168, label, sublabel }) {
   const [animated, setAnimated] = useState(0);
 
@@ -13,23 +11,16 @@ export default function ProgressArc({ percent = 0, size = 168, label, sublabel }
   const r = 80;
   const cx = 100;
   const cy = 100;
-  const circumferenceHalf = Math.PI * r; // length of the semicircle path
+  const circumferenceHalf = Math.PI * r;
   const dash = (animated / 100) * circumferenceHalf;
-
-  const angle = Math.PI - (animated / 100) * Math.PI; // 180deg -> 0deg
+  const angle = Math.PI - (animated / 100) * Math.PI;
   const dotX = cx + r * Math.cos(angle);
   const dotY = cy - r * Math.sin(angle);
 
   return (
     <div className="relative" style={{ width: size, height: size * 0.62 }}>
       <svg viewBox="0 0 200 118" className="w-full h-full overflow-visible">
-        <path
-          d="M 20 100 A 80 80 0 0 1 180 100"
-          fill="none"
-          stroke="var(--line)"
-          strokeWidth="10"
-          strokeLinecap="round"
-        />
+        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--line)" strokeWidth="10" strokeLinecap="round" />
         <path
           d="M 20 100 A 80 80 0 0 1 180 100"
           fill="none"

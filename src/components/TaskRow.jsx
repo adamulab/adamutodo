@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Trash2, GripVertical } from "lucide-react";
+import { Check, Trash2, ChevronUp, ChevronDown, Timer } from "lucide-react";
 import PriorityDot from "./PriorityDot";
-import AreaBadge from "./AreaBadge";
+import CategoryBadge from "./CategoryBadge";
 
-export default function TaskRow({ task, area, onToggle, onEdit, onDelete, dragHandleProps }) {
+export default function TaskRow({ task, onToggle, onEdit, onDelete, onMoveUp, onMoveDown, onFocus, showCategory = true }) {
   const [justCompleted, setJustCompleted] = useState(false);
 
   const handleToggle = (e) => {
@@ -26,14 +26,31 @@ export default function TaskRow({ task, area, onToggle, onEdit, onDelete, dragHa
       className="group flex items-start gap-3 rounded-xl px-3 py-2.5 cursor-pointer hover:bg-surface-hover transition-colors"
       onClick={() => onEdit(task)}
     >
-      {dragHandleProps && (
-        <span
-          {...dragHandleProps}
-          className="mt-1 cursor-grab opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity hidden sm:block"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical size={14} />
-        </span>
+      {(onMoveUp || onMoveDown) && (
+        <div className="hidden sm:flex flex-col mt-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity">
+          <button
+            aria-label="Move task up"
+            disabled={!onMoveUp}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveUp?.();
+            }}
+            className="text-ink-faint hover:text-ink disabled:opacity-0"
+          >
+            <ChevronUp size={13} />
+          </button>
+          <button
+            aria-label="Move task down"
+            disabled={!onMoveDown}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveDown?.();
+            }}
+            className="text-ink-faint hover:text-ink disabled:opacity-0"
+          >
+            <ChevronDown size={13} />
+          </button>
+        </div>
       )}
 
       <button
@@ -76,13 +93,24 @@ export default function TaskRow({ task, area, onToggle, onEdit, onDelete, dragHa
         >
           {task.title}
         </p>
-        {(area || task.priority) && (
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {!task.done && <PriorityDot priority={task.priority} />}
-            {area && <AreaBadge area={area} />}
-          </div>
-        )}
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {!task.done && <PriorityDot priority={task.priority} />}
+          {showCategory && <CategoryBadge category={task.category} />}
+        </div>
       </div>
+
+      {onFocus && !task.done && (
+        <button
+          aria-label="Start focus timer for this task"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFocus(task);
+          }}
+          className="shrink-0 mt-0.5 p-1 rounded-md opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-ink-faint hover:text-accent transition-opacity"
+        >
+          <Timer size={14} />
+        </button>
+      )}
 
       <button
         aria-label="Delete task"

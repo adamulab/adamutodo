@@ -9,7 +9,7 @@ export const TIME_BLOCK_META = {
   anytime: { label: "Anytime", icon: Moon },
 };
 
-export default function TimeBlockSection({ blockId, tasks, areasById, onToggle, onEdit, onDelete, isCurrent }) {
+export default function TimeBlockSection({ blockId, tasks, onToggle, onEdit, onDelete, onFocus, isCurrent, getReorderHandlers }) {
   const meta = TIME_BLOCK_META[blockId];
   const Icon = meta.icon;
   if (tasks.length === 0) return null;
@@ -18,10 +18,7 @@ export default function TimeBlockSection({ blockId, tasks, areasById, onToggle, 
     <section className="mb-2">
       <div className="flex items-center gap-2 px-3 mb-1">
         <Icon size={14} style={{ color: isCurrent ? "var(--accent)" : "var(--ink-faint)" }} />
-        <h3
-          className="text-xs font-semibold uppercase tracking-wide"
-          style={{ color: isCurrent ? "var(--accent)" : "var(--ink-faint)" }}
-        >
+        <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: isCurrent ? "var(--accent)" : "var(--ink-faint)" }}>
           {meta.label}
         </h3>
         <span className="text-xs text-ink-faint">{tasks.length}</span>
@@ -29,16 +26,20 @@ export default function TimeBlockSection({ blockId, tasks, areasById, onToggle, 
       </div>
       <div>
         <AnimatePresence initial={false}>
-          {tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              area={task.areaId ? areasById[task.areaId] : null}
-              onToggle={onToggle}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
+          {tasks.map((task) => {
+            const handlers = getReorderHandlers ? getReorderHandlers(task, tasks) : {};
+            return (
+              <TaskRow
+                key={task.id}
+                task={task}
+                onToggle={onToggle}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onFocus={onFocus}
+                {...handlers}
+              />
+            );
+          })}
         </AnimatePresence>
       </div>
     </section>

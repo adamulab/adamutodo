@@ -3,43 +3,35 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider, useToast } from "./context/ToastContext";
-import { useFocusData } from "./hooks/useFocusData";
+import { usePlannerData } from "./hooks/usePlannerData";
+import { todayKey } from "./utils/date";
 import Sidebar from "./components/Sidebar";
 import { MobileTopBar, MobileBottomNav } from "./components/MobileChrome";
 import TodayView from "./components/TodayView";
-import WeekView from "./components/WeekView";
-import FocusAreasView from "./components/FocusAreasView";
-import FocusAreaDetail from "./components/FocusAreaDetail";
+import TomorrowView from "./components/TomorrowView";
+import ReflectView from "./components/ReflectView";
+import HabitsView from "./components/HabitsView";
+import NotesShoppingView from "./components/NotesShoppingView";
+import InsightsView from "./components/InsightsView";
 import TaskComposer from "./components/TaskComposer";
-import AreaComposer from "./components/AreaComposer";
+import FocusTimer from "./components/FocusTimer";
 import ToastStack from "./components/ToastStack";
 
 function getInitialView() {
   if (typeof window === "undefined") return "today";
   const params = new URLSearchParams(window.location.search);
-  return params.get("view") === "today" ? "today" : "today";
+  const v = params.get("view");
+  return ["today", "tomorrow", "habits", "notes", "insights"].includes(v) ? v : "today";
 }
 
 function AppShell() {
   const { user, authChecked } = useAuth();
   const { notify } = useToast();
-  const data = useFocusData(user?.uid);
+  const data = usePlannerData(user?.uid);
 
   const [view, setView] = useState(getInitialView());
-  const [activeAreaId, setActiveAreaId] = useState(null);
-
   const [taskModal, setTaskModal] = useState({ open: false, initial: null, defaults: {} });
-  const [areaModal, setAreaModal] = useState({ open: false, initial: null });
-
-  const navigate = (v) => {
-    setActiveAreaId(null);
-    setView(v);
-  };
-
-  const selectArea = (id) => {
-    setActiveAreaId(id);
-    setView("areas");
-  };
+  const [focusTask, setFocusTask] = useState(null);
 
   const openNewTask = (defaults = {}) => setTaskModal({ open: true, initial: null, defaults });
   const openEditTask = (task) => setTaskModal({ open: true, initial: task, defaults: {} });
@@ -51,7 +43,7 @@ function AppShell() {
       notify("Task updated.", { type: "success" });
     } else {
       data.addTask(payload);
-      notify("Task added to your plan.", { type: "success" });
+      notify(payload.date === todayKey() ? "Task added to today." : "Added to tomorrow's plan.", { type: "success" });
     }
   };
 
@@ -66,23 +58,9 @@ function AppShell() {
     if (task && !task.done) notify("Nice — one more done.", { type: "success", duration: 1800 });
   };
 
-  const openNewArea = () => setAreaModal({ open: true, initial: null });
-  const openEditArea = (area) => setAreaModal({ open: true, initial: area });
+  const handleReorder = (id, direction, siblingIds) => data.reorder(id, direction, siblingIds);
 
-  const handleSaveArea = (payload) => {
-    if (payload.id) {
-      data.updateArea(payload.id, payload);
-    } else {
-      data.addArea(payload);
-      notify("Focus area created.", { type: "success" });
-    }
-  };
-
-  // Notes-blur autosave calls onEditArea with full object including notes —
-  // route that straight through without reopening the modal.
-  const handleAreaNotesSave = (payload) => {
-    if (payload.id) data.updateArea(payload.id, payload);
-  };
+  const hasReflectedToday = Boolean(data.reflections[todayKey()]?.carriedForward);
 
   if (!authChecked) {
     return (
@@ -97,26 +75,16 @@ function AppShell() {
     );
   }
 
-  const activeArea = activeAreaId ? data.areas.find((a) => a.id === activeAreaId) : null;
-
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: "var(--bg)" }}>
-      <Sidebar
-        view={view}
-        onNavigate={navigate}
-        areas={data.areas}
-        activeAreaId={activeAreaId}
-        onSelectArea={selectArea}
-        onNewArea={openNewArea}
-        syncStatus={data.syncStatus}
-      />
+      <Sidebar view={view} onNavigate={setView} syncStatus={data.syncStatus} />
 
       <div className="flex-1 min-w-0">
         <MobileTopBar syncStatus={data.syncStatus} />
 
         <AnimatePresence mode="wait">
           <motion.main
-            key={view + (activeAreaId || "")}
+            key={view}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
@@ -125,38 +93,64 @@ function AppShell() {
             {view === "today" && (
               <TodayView
                 tasks={data.tasks}
-                areas={data.areas}
                 onToggle={handleToggleTask}
                 onEdit={openEditTask}
                 onDelete={handleDeleteTask}
                 onAdd={openNewTask}
+                onFocusTask={setFocusTask}
+                onGoReflect={() => setView("reflect")}
+                hasReflectedToday={hasReflectedToday}
               />
             )}
-            {view === "week" && (
-              <WeekView
+            {view === "tomorrow" && (
+              <TomorrowView
                 tasks={data.tasks}
-                areas={data.areas}
                 onToggle={handleToggleTask}
                 onEdit={openEditTask}
                 onDelete={handleDeleteTask}
                 onAdd={openNewTask}
+                onReorder={handleReorder}
               />
             )}
-            {view === "areas" && !activeArea && (
-              <FocusAreasView areas={data.areas} tasks={data.tasks} onSelectArea={selectArea} onNewArea={openNewArea} />
-            )}
-            {view === "areas" && activeArea && (
-              <FocusAreaDetail
-                area={activeArea}
+            {view === "reflect" && (
+              <ReflectView
                 tasks={data.tasks}
-                onBack={() => setActiveAreaId(null)}
-                onToggle={handleToggleTask}
-                onEdit={openEditTask}
-                onDelete={handleDeleteTask}
-                onAdd={openNewTask}
-                onEditArea={openEditArea}
-                onSaveNotes={handleAreaNotesSave}
-                onDeleteArea={data.deleteArea}
+                habits={data.habits}
+                habitLogs={data.habitLogs}
+                reflection={data.reflections[todayKey()]}
+                onSaveReflection={data.saveReflection}
+                onCarryForward={data.carryForward}
+                onDone={() => setView("tomorrow")}
+              />
+            )}
+            {view === "habits" && (
+              <HabitsView
+                habits={data.habits}
+                habitLogs={data.habitLogs}
+                onAddHabit={data.addHabit}
+                onDeleteHabit={data.deleteHabit}
+                onToggleDay={data.toggleHabitDay}
+              />
+            )}
+            {view === "notes" && (
+              <NotesShoppingView
+                notes={data.notes}
+                shoppingItems={data.shoppingItems}
+                onAddNote={data.addNote}
+                onDeleteNote={data.deleteNote}
+                onAddItem={data.addShoppingItem}
+                onToggleItem={data.toggleShoppingItem}
+                onDeleteItem={data.deleteShoppingItem}
+                onClearChecked={data.clearCheckedShopping}
+              />
+            )}
+            {view === "insights" && (
+              <InsightsView
+                tasks={data.tasks}
+                habits={data.habits}
+                habitLogs={data.habitLogs}
+                reflections={data.reflections}
+                focusSessions={data.focusSessions}
               />
             )}
           </motion.main>
@@ -165,7 +159,7 @@ function AppShell() {
         <div className="h-16 md:hidden" />
       </div>
 
-      <MobileBottomNav view={view} onNavigate={navigate} />
+      <MobileBottomNav view={view} onNavigate={setView} />
 
       <TaskComposer
         open={taskModal.open}
@@ -173,12 +167,18 @@ function AppShell() {
         onSave={handleSaveTask}
         onDelete={handleDeleteTask}
         initial={taskModal.initial}
-        areas={data.areas}
-        defaultDate={taskModal.defaults.date}
-        defaultAreaId={taskModal.defaults.areaId}
+        defaultDate={taskModal.defaults.date || todayKey()}
       />
 
-      <AreaComposer open={areaModal.open} onClose={() => setAreaModal((m) => ({ ...m, open: false }))} onSave={handleSaveArea} initial={areaModal.initial} />
+      <FocusTimer
+        open={Boolean(focusTask)}
+        task={focusTask}
+        onClose={() => setFocusTask(null)}
+        onSessionComplete={(session) => {
+          data.logFocusSession(session);
+          notify("Focus session complete — nice work.", { type: "success" });
+        }}
+      />
 
       <ToastStack />
     </div>

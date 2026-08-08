@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    /* ── Arc — light mode ────────────────────────────────────────────── */
+    /* ── Dawn — light mode ────────────────────────────────────────────── */
     --bg: #f5f3fa;
     --surface: #ffffff;
     --surface-raised: #ffffff;
@@ -34,7 +34,7 @@
   }
 
   .dark {
-    /* ── Arc — dark mode (twilight) ──────────────────────────────────── */
+    /* ── Dawn — dark mode (twilight) ──────────────────────────────────── */
     --bg: #131020;
     --surface: #1c1830;
     --surface-raised: #221d3a;

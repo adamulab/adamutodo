@@ -1,7 +1,7 @@
 {
-  "name": "Arc — Daily Focus",
-  "short_name": "Arc",
-  "description": "A calm, focused daily planner.",
+  "name": "Dawn — Plan Tomorrow Tonight",
+  "short_name": "Dawn",
+  "description": "Plan tomorrow tonight — tasks, habits, notes, and reflection.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1C1730",

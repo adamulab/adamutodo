@@ -1,18 +1,17 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, ChevronDown, AlertCircle, Sparkles } from "lucide-react";
+import { Plus, ChevronDown, AlertCircle, Sparkles, Moon } from "lucide-react";
 import ProgressArc from "./ProgressArc";
 import TimeBlockSection from "./TimeBlockSection";
 import TaskRow from "./TaskRow";
 import EmptyState from "./EmptyState";
-import { todayKey, greeting, currentTimeBlock, formatFullDate } from "../utils/date";
+import { todayKey, greeting, currentTimeBlock, formatFullDate, isEveningNow } from "../utils/date";
 
 const BLOCK_ORDER = ["morning", "afternoon", "evening", "anytime"];
 
-export default function TodayView({ tasks, areas, onToggle, onEdit, onDelete, onAdd }) {
+export default function TodayView({ tasks, onToggle, onEdit, onDelete, onAdd, onFocusTask, onGoReflect, hasReflectedToday }) {
   const [showCompleted, setShowCompleted] = useState(false);
   const today = todayKey();
-  const areasById = useMemo(() => Object.fromEntries(areas.map((a) => [a.id, a])), [areas]);
   const nowBlock = currentTimeBlock();
 
   const todayTasks = tasks.filter((t) => t.date === today);
@@ -31,7 +30,7 @@ export default function TodayView({ tasks, areas, onToggle, onEdit, onDelete, on
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-28 pt-6 sm:pt-10">
-      <header className="flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-8 mb-8">
+      <header className="flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-8 mb-6">
         <div className="flex-1">
           <p className="text-sm text-ink-muted mb-1">{formatFullDate(today)}</p>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold text-balance">
@@ -54,10 +53,33 @@ export default function TodayView({ tasks, areas, onToggle, onEdit, onDelete, on
         </div>
       </header>
 
-      <button onClick={() => onAdd({ date: today })} className="btn-accent w-full mb-6 py-3" aria-label="Add a task for today">
-        <Plus size={17} />
-        Add a task
-      </button>
+      {isEveningNow() && !hasReflectedToday && (
+        <button
+          onClick={onGoReflect}
+          className="w-full mb-6 rounded-2xl p-4 flex items-center gap-3 text-left transition-all hover:-translate-y-0.5"
+          style={{ backgroundColor: "var(--accent-soft)" }}
+        >
+          <Moon size={18} style={{ color: "var(--accent)" }} className="shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold" style={{ color: "var(--accent-hover)" }}>
+              It's evening — reflect &amp; plan tomorrow
+            </p>
+            <p className="text-xs text-ink-muted mt-0.5">Takes two minutes. Unfinished tasks carry forward automatically.</p>
+          </div>
+        </button>
+      )}
+
+      <div className="flex gap-2 mb-6">
+        <button onClick={() => onAdd({ date: today })} className="btn-accent flex-1 py-3" aria-label="Add a task for today">
+          <Plus size={17} />
+          Add a task
+        </button>
+        {todayTasks.length > 0 && (
+          <button onClick={onGoReflect} className="btn-ghost shrink-0" aria-label="Reflect on today">
+            Reflect
+          </button>
+        )}
+      </div>
 
       {overdue.length > 0 && (
         <section className="mb-6">
@@ -71,14 +93,7 @@ export default function TodayView({ tasks, areas, onToggle, onEdit, onDelete, on
           <div className="rounded-xl" style={{ backgroundColor: "var(--rose-soft)" }}>
             <AnimatePresence initial={false}>
               {overdue.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  area={task.areaId ? areasById[task.areaId] : null}
-                  onToggle={onToggle}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                />
+                <TaskRow key={task.id} task={task} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} onFocus={onFocusTask} />
               ))}
             </AnimatePresence>
           </div>
@@ -89,7 +104,7 @@ export default function TodayView({ tasks, areas, onToggle, onEdit, onDelete, on
         <EmptyState
           icon={Sparkles}
           title="Nothing on the books yet"
-          subtitle="Add today's first task to start building momentum."
+          subtitle="Add today's first task, or plan tonight for tomorrow."
           action={
             <button onClick={() => onAdd({ date: today })} className="btn-accent">
               <Plus size={16} /> Add a task
@@ -103,10 +118,10 @@ export default function TodayView({ tasks, areas, onToggle, onEdit, onDelete, on
           key={block}
           blockId={block}
           tasks={byBlock[block]}
-          areasById={areasById}
           onToggle={onToggle}
           onEdit={onEdit}
           onDelete={onDelete}
+          onFocus={onFocusTask}
           isCurrent={block === nowBlock}
         />
       ))}
@@ -134,14 +149,7 @@ export default function TodayView({ tasks, areas, onToggle, onEdit, onDelete, on
                 className="overflow-hidden"
               >
                 {completed.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    area={task.areaId ? areasById[task.areaId] : null}
-                    onToggle={onToggle}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                  />
+                  <TaskRow key={task.id} task={task} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
                 ))}
               </motion.div>
             )}

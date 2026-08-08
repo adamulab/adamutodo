@@ -19,10 +19,10 @@ export default defineConfig({
       ],
 
       manifest: {
-        name: "Arc — Daily Focus",
-        short_name: "Arc",
+        name: "Dawn — Plan Tomorrow Tonight",
+        short_name: "Dawn",
         description:
-          "A calm, focused daily planner. Plan today, track focus areas, see your week.",
+          "Plan tomorrow tonight — tasks, habits, notes, and reflection in one calm daily planner.",
         theme_color: "#1C1730",
         background_color: "#1C1730",
         display: "standalone",
@@ -34,10 +34,10 @@ export default defineConfig({
         categories: ["productivity", "utilities"],
         shortcuts: [
           {
-            name: "Today",
-            short_name: "Today",
-            description: "Jump straight to today's plan",
-            url: "/?view=today",
+            name: "Plan Tomorrow",
+            short_name: "Plan Tomorrow",
+            description: "Jump straight to tomorrow's plan",
+            url: "/?view=tomorrow",
           },
         ],
         related_applications: [],

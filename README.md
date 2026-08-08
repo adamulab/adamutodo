@@ -1,17 +1,36 @@
-# Arc — Daily Focus
+# Dawn — Plan Tomorrow Tonight
 
-A calm, focused daily planner, rebuilt from the ground up on top of your original TaskFlow codebase. Arc is centered on **today**: what's on your plate, what's overdue, and what's coming up this week — organized around Focus Areas instead of flat todo lists.
+A calm daily planner built around the spec's central idea: **you plan tomorrow tonight**, then execute it, then reflect and let unfinished work carry itself forward. Local-first, fully working, zero external accounts required to start.
 
-## What changed from TaskFlow
+## Scope of this build
 
-- **New information architecture.** Three views instead of an open-ended list of lists:
-  - **Today** — the home screen. A sunrise-arc progress indicator, an overdue callout, and today's tasks grouped into Morning / Afternoon / Evening / Anytime.
-  - **Week** — a 7-day planner grid for looking ahead and dropping tasks onto specific days.
-  - **Focus Areas** — projects/goals (replacing "lists") that tasks can optionally belong to, each with its own notes and progress.
-- **Firebase is now fully optional.** The app runs immediately with zero configuration, storing everything in `localStorage`. If you add Firebase credentials (see below), sign-in and cross-device sync switch on automatically — the UI adapts either way (see `src/firebase.js`).
-- **New visual identity.** A warm "twilight → dawn" palette (deep indigo ink, coral/amber accent, teal/gold/rose for focus areas), paired display/body/mono type (Fraunces + Plus Jakarta Sans + JetBrains Mono), and a signature sunrise-arc progress component. Full light/dark mode, tuned for contrast in both.
-- **Simplified data model.** One flat `tasks` array with `date`, `timeBlock`, `priority`, and an optional `areaId`, instead of nested per-list `todos`/`archivedTodos`. This is what makes the Today/Week views possible.
-- **Dropped for this rebuild:** ads/AdSense, the multi-list sidebar, todo recurrence, and the archive drawer. Recurrence and archive are natural follow-ups if you want them back — the data model has room for both.
+The source spec describes a large, multi-quarter product — native iOS/Android apps, calendar sync, SMS/WhatsApp reminders, weather and traffic APIs, a real AI assistant, a voice assistant, and a gamification backend. None of that is buildable as a genuine, working feature from this environment (it needs paid third-party API keys, app store builds, and backend infrastructure), so rather than fake it, here's exactly what's real and what's deferred:
+
+### Built (fully working, no config needed)
+- **Plan Tomorrow** — add tasks for tomorrow with category, priority, and time block; reorder within a block
+- **Today** — execute today's plan, checkbox + a Pomodoro focus timer per task, completed sessions logged automatically
+- **Sleep Planner** — rule-based bedtime suggestion (not AI) computed backward from tomorrow's earliest scheduled block, with an adjustable sleep-hours target
+- **Daily Reflection** — mood, energy, an auto-computed productivity score, "what wasn't completed"
+- **Smart Carry-Forward** — move all / move selected / discard unfinished tasks into tomorrow, run from the Reflect screen
+- **Habits** — daily habit tracking, 7-day grid, streak counter
+- **Notes & Shopping** — quick notes, categorized shopping checklist
+- **Voice quick-add** — dictate a task title using the browser's native Speech Recognition API (Chrome/Edge/Safari); no API key, no backend, hidden automatically where unsupported
+- **Insights** — weekly completion-rate chart, habit consistency, streaks, average productivity score, weekly focus minutes, and a one-click CSV export of every task
+- **Light/dark mode**, optional Firebase sign-in + cross-device sync (same pattern as before: works fully offline without it)
+
+### Deliberately deferred — needs infrastructure this environment doesn't have
+| Feature | Why it's deferred | Where it plugs in |
+|---|---|---|
+| Google/Outlook/Apple Calendar sync | Needs OAuth app registration + calendar APIs | `src/hooks/usePlannerData.js` — tasks already have a `date`; an import step could map calendar events to tasks |
+| Weather-aware planning | Needs an OpenWeather (or similar) API key | Could sit as a card in `TomorrowView.jsx`, next to `SleepPlanner` |
+| Traffic/travel estimates | Needs Google Maps API key + billing | Same |
+| SMS / WhatsApp / push reminders | Needs a messaging provider (Twilio, FCM) + a backend to schedule sends | The PWA install (`vite-plugin-pwa`) already gives you browser push as the cheapest first step |
+| Real AI suggestions (task ordering, time estimates, conflict detection, natural-language planning) | Needs an LLM API key and a backend to call it safely (a key can't live in client code) | `usePlannerData.js`'s task shape is already flat and simple to feed to a model. The Sleep Planner and voice quick-add use plain rules/browser APIs instead — genuinely working today, just not "AI" |
+| Native iOS/Android apps | Needs Xcode/Android Studio builds and app store accounts | This is a PWA today — installable, but not a native binary |
+| Gamification (XP, badges, weekly challenges) | Needs a backend to prevent client-side tampering with scores | `reflections` already stores a daily score as a starting point |
+| Cloud database (MongoDB) / JWT backend | This build uses Firestore (optional) instead, which needs no backend code to run | — |
+
+If you want to tackle any of these next, the data model and file layout are built to make that additive rather than a rewrite.
 
 ## Getting started
 
@@ -20,36 +39,24 @@ npm install
 npm run dev
 ```
 
-The app works immediately — no `.env` needed. Everything is saved to `localStorage` on your device.
-
-### Optional: cloud sync
-
-Copy `.env.example` to `.env` and fill in your Firebase project's web config to enable Google sign-in + cross-device sync:
-
-```bash
-cp .env.example .env
-```
-
-Without a `.env`, the sign-in button in the account menu simply explains that sync isn't configured — nothing breaks.
+Works immediately — everything saves to `localStorage`. Optional cloud sync: copy `.env.example` to `.env` and fill in a Firebase web config.
 
 ## Project structure
 
 ```
 src/
-  App.jsx                 — view routing + top-level state
-  firebase.js              — guarded Firebase setup (no-ops without a config)
-  context/                 — Theme, Auth, Toast providers
-  hooks/useFocusData.js    — local-first data layer (areas + tasks), optional Firestore sync
+  App.jsx                    — view routing + top-level state
+  hooks/
+    usePlannerData.js        — tasks, habits, notes, shopping, reflections, focus sessions (local-first, optional Firestore sync)
+    useVoiceInput.js         — thin wrapper around the browser's native SpeechRecognition API
   components/
-    TodayView, WeekView, FocusAreasView, FocusAreaDetail  — the three main screens
-    TaskComposer, AreaComposer                            — create/edit modals
-    ProgressArc                                           — signature sunrise progress indicator
-    Sidebar, MobileChrome                                 — desktop / mobile navigation
-  utils/date.js, areaColors.js, id.js
+    TodayView, TomorrowView  — the core plan/execute loop
+    SleepPlanner              — rule-based bedtime suggestion, shown in TomorrowView
+    ReflectView                — mood/energy/score + smart carry-forward
+    HabitsView                — streaks
+    NotesShoppingView         — notes + shopping list, tabbed
+    InsightsView               — weekly dashboard + CSV export
+    FocusTimer                 — Pomodoro, logs completed sessions
+    TaskComposer                — add/edit task modal, includes voice quick-add
+  utils/date.js, categories.js, productivity.js, sleep.js, csv.js
 ```
-
-## Notes for going further
-
-- **PWA icons** in `public/` are still the old TaskFlow icon files (so the app installs and works as a PWA out of the box) — swap in new artwork when you have it, and update `vite.config.js` / `site.webmanifest` if you rename the files.
-- **Tests**: the previous test suite targeted the old list-based data model and has been removed rather than left broken. `vitest`/testing-library aren't wired into `package.json` yet — add them back if you want coverage on `useFocusData`.
-- **Drag-and-drop reordering** isn't implemented yet (tasks reorder by edit-and-save for now). `reorderWithin` exists in `useFocusData.js` as a hook for wiring up `@dnd-kit` or similar later.

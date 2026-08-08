@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Trash2, Sunrise, Sun, Sunset, Moon, Calendar } from "lucide-react";
-import { AreaDot } from "./AreaBadge";
-import { todayKey, formatFullDate } from "../utils/date";
+import { X, Trash2, Sunrise, Sun, Sunset, Moon, Calendar, Mic } from "lucide-react";
+import { CATEGORIES, CATEGORY_META } from "../utils/categories";
+import { CategoryDot } from "./CategoryBadge";
+import { formatFullDate } from "../utils/date";
+import { useVoiceInput } from "../hooks/useVoiceInput";
 
 const TIME_BLOCKS = [
   { id: "morning", label: "Morning", icon: Sunrise },
@@ -17,47 +19,40 @@ const PRIORITIES = [
   { id: "high", label: "High", var: "--rose" },
 ];
 
-export default function TaskComposer({ open, onClose, onSave, onDelete, initial, areas, defaultDate, defaultAreaId }) {
+export default function TaskComposer({ open, onClose, onSave, onDelete, initial, defaultDate }) {
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(todayKey());
+  const [date, setDate] = useState(defaultDate);
   const [timeBlock, setTimeBlock] = useState("anytime");
   const [priority, setPriority] = useState("medium");
-  const [areaId, setAreaId] = useState(null);
+  const [category, setCategory] = useState("other");
   const titleRef = useRef(null);
+  const voice = useVoiceInput({
+    onResult: (transcript) => setTitle((prev) => (prev ? `${prev} ${transcript}` : transcript)),
+  });
 
   useEffect(() => {
     if (!open) return;
     setTitle(initial?.title || "");
     setNotes(initial?.notes || "");
-    setDate(initial?.date || defaultDate || todayKey());
+    setDate(initial?.date || defaultDate);
     setTimeBlock(initial?.timeBlock || "anytime");
     setPriority(initial?.priority || "medium");
-    setAreaId(initial?.areaId ?? defaultAreaId ?? null);
+    setCategory(initial?.category || "other");
     const t = setTimeout(() => titleRef.current?.focus(), 80);
     return () => clearTimeout(t);
-  }, [open, initial, defaultDate, defaultAreaId]);
+  }, [open, initial, defaultDate]);
 
   const handleSave = () => {
     if (!title.trim()) return;
-    onSave({
-      ...(initial || {}),
-      title: title.trim(),
-      notes,
-      date,
-      timeBlock,
-      priority,
-      areaId,
-    });
+    onSave({ ...(initial || {}), title: title.trim(), notes, date, timeBlock, priority, category });
     onClose();
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey || e.target.tagName !== "TEXTAREA")) {
-      if (e.target.tagName !== "TEXTAREA") {
-        e.preventDefault();
-        handleSave();
-      }
+    if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
+      e.preventDefault();
+      handleSave();
     }
     if (e.key === "Escape") onClose();
   };
@@ -96,14 +91,32 @@ export default function TaskComposer({ open, onClose, onSave, onDelete, initial,
               </button>
             </div>
 
-            <input
-              ref={titleRef}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="What do you want to get done?"
-              className="input-quiet text-lg font-medium mb-4 pb-3 border-b border-line"
-              aria-label="Task title"
-            />
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-line">
+              <input
+                ref={titleRef}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What needs to happen?"
+                className="input-quiet text-lg font-medium flex-1"
+                aria-label="Task title"
+              />
+              {voice.supported && (
+                <button
+                  type="button"
+                  onClick={voice.listening ? voice.stop : voice.start}
+                  aria-label={voice.listening ? "Stop voice input" : "Add task by voice"}
+                  aria-pressed={voice.listening}
+                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                  style={{
+                    backgroundColor: voice.listening ? "var(--accent)" : "var(--surface-hover)",
+                    color: voice.listening ? "#fff" : "var(--ink-muted)",
+                  }}
+                >
+                  <Mic size={14} className={voice.listening ? "animate-pulse" : ""} />
+                </button>
+              )}
+            </div>
+            {voice.error && <p className="text-xs -mt-3 mb-3" style={{ color: "var(--rose)" }}>{voice.error}</p>}
 
             <div className="mb-4">
               <label className="text-xs font-semibold text-ink-muted mb-2 block">When</label>
@@ -160,46 +173,33 @@ export default function TaskComposer({ open, onClose, onSave, onDelete, initial,
               </div>
             </div>
 
-            {areas.length > 0 && (
-              <div className="mb-4">
-                <label className="text-xs font-semibold text-ink-muted mb-2 block">Focus area</label>
-                <div className="flex flex-wrap gap-1.5">
+            <div className="mb-5">
+              <label className="text-xs font-semibold text-ink-muted mb-2 block">Category</label>
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORIES.map((c) => (
                   <button
+                    key={c}
                     type="button"
-                    onClick={() => setAreaId(null)}
+                    onClick={() => setCategory(c)}
                     className="chip text-xs border transition-all"
                     style={{
-                      borderColor: !areaId ? "var(--accent)" : "var(--line)",
-                      color: !areaId ? "var(--accent)" : "var(--ink-muted)",
+                      borderColor: category === c ? "var(--ink-faint)" : "var(--line)",
+                      backgroundColor: category === c ? "var(--surface-hover)" : "transparent",
                     }}
                   >
-                    None
+                    <CategoryDot category={c} />
+                    {CATEGORY_META[c].label}
                   </button>
-                  {areas.map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => setAreaId(a.id)}
-                      className="chip text-xs border transition-all"
-                      style={{
-                        borderColor: areaId === a.id ? "var(--ink-faint)" : "var(--line)",
-                        backgroundColor: areaId === a.id ? "var(--surface-hover)" : "transparent",
-                      }}
-                    >
-                      <AreaDot color={a.color} />
-                      {a.name}
-                    </button>
-                  ))}
-                </div>
+                ))}
               </div>
-            )}
+            </div>
 
             <div className="mb-5">
               <label className="text-xs font-semibold text-ink-muted mb-2 block">Notes</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add details, links, anything you'll want later…"
+                placeholder="Details, links, anything you'll want later…"
                 rows={2}
                 className="input-quiet text-sm rounded-xl bg-surface-hover px-3 py-2 resize-none"
               />
